@@ -1,0 +1,654 @@
+# For importing resultsanscript estimates.
+library(tximport)
+library(tximportData)
+
+# For differential expression analysis. 
+library(edgeR)
+
+# Import seqinr for editing fasta files.
+library(seqinr)
+
+# Load pheatmap.
+library(pheatmap)
+
+library(stringr)
+
+# Interface to the libsvm library in C.
+library(e1071)
+library(probsvm)
+
+# Remove all objects.
+rm(list = ls())
+#dev.off()
+
+# Set the working directory.
+setwd(paste(".", sep = ""))
+
+# Load previous data.
+file.rdata <- paste("DATA/Orthofinder/VERSION_RUN/OrthogroupsExpression.RData")
+load(file = file.rdata)
+
+#Creating raw tpm (Michael style) output matrix(Chris addition)
+CREATECOUNTAGAIN2
+#### WARNING< this below run is just for TPM equivalent data, not for ML, as it is not species normalised.###
+matrix.data.tpm.orth.filter <- matrix.data.tpm.orth[rowSums(!is.na(matrix.data.tpm.orth)) == dim(matrix.data.tpm.orth)[2], ]
+matrix.data.tpm.orth.filter.scale <- matrix.data.tpm.orth.filter
+matrix.data.tpm.orth.filter.train <- matrix.data.tpm.orth.filter.scale[ , -GREPFITHERE , colnames(matrix.data.tpm.orth.filter.scale))]
+matrix.data.tpm.orth.filter.test <- matrix.data.tpm.orth.filter.scale[ , GREPFITHERE , colnames(matrix.data.tpm.orth.filter.scale))]
+matrix.data.tpm.orth.filter.together <- cbind(matrix.data.tpm.orth.filter.train, matrix.data.tpm.orth.filter.test)
+#### WARNING< this above run is just for TPM equivalent data, not for ML, as it is not species normalised.###
+
+#Creating normalised tpm (Michael style) matrix(Chris addition)
+CREATETPMHERE
+matrix.tpm.log2.quantile.species.scaled.orth.filter <- matrix.tpm.log2.quantile.species.scaled.orth[rowSums(!is.na(matrix.tpm.log2.quantile.species.scaled.orth)) == dim(matrix.tpm.log2.quantile.species.scaled.orth)[2], ]
+matrix.tpm.log2.quantile.species.scaled.orth.filter.scale <- matrix.tpm.log2.quantile.species.scaled.orth.filter
+matrix.tpm.log2.quantile.species.scaled.orth.filter.scale.train <- matrix.tpm.log2.quantile.species.scaled.orth.filter.scale[ , -GREPFITHERE , colnames(matrix.tpm.log2.quantile.species.scaled.orth.filter.scale))]
+matrix.tpm.log2.quantile.species.scaled.orth.filter.scale.test <- matrix.tpm.log2.quantile.species.scaled.orth.filter.scale[ , GREPFITHERE , colnames(matrix.tpm.log2.quantile.species.scaled.orth.filter.scale))]
+matrix.tpm.log2.quantile.species.scaled.orth.filter.scale.together <- cbind(matrix.tpm.log2.quantile.species.scaled.orth.filter.scale.train,matrix.tpm.log2.quantile.species.scaled.orth.filter.scale.test)
+
+
+#creating file for Chris real TPMs.
+CREATE_REAL_TPM_HERE
+matrix_real.tpm.filter <- matrix_real.tpm[rowSums(!is.na(matrix_real.tpm)) == dim(matrix_real.tpm)[2], ]
+matrix_real.tpm.filter.scale <- matrix_real.tpm.filter #Scale by row, but NOT by column, as this changes the direction of up-down regulation
+matrix_real.tpm.filter.scale.train <- matrix_real.tpm.filter.scale[ , -GREPFITHERE , colnames(matrix_real.tpm.filter.scale))]
+
+#creating file for Chris real TPM without quatile nos, full normalisation (species scaled).
+CREATE_UNQUANTILED
+matrix_real.UNQ.filter <- matrix_real.UNQ[rowSums(!is.na(matrix_real.UNQ)) == dim(matrix_real.UNQ)[2], ]
+matrix_real.UNQ.filter.scale <- matrix_real.UNQ.filter #Scale by row, but NOT by column, as this changes the direction of up-down regulation
+matrix_real.UNQ.filter.scale.train <- matrix_real.UNQ.filter.scale[ , -GREPFITHERE , colnames(matrix_real.UNQ.filter.scale))]
+matrix_real.UNQ.filter.scale.test <- matrix_real.UNQ.filter.scale[ , GREPFITHERE , colnames(matrix_real.UNQ.filter.scale))]
+matrix_real.UNQ.filter.scale.together <- cbind(matrix_real.UNQ.filter.scale.train, matrix_real.UNQ.filter.scale.test)
+
+#creating file for Chris real TPM without quatile nos log.
+CREATE_LOG2_TPM_UNQUANT
+matrix_real.TPM_UNQUANT.filter <- matrix_real.TPM_UNQUANT[rowSums(!is.na(matrix_real.TPM_UNQUANT)) == dim(matrix_real.TPM_UNQUANT)[2], ]
+matrix_real.TPM_UNQUANT.filter.scale <- matrix_real.TPM_UNQUANT.filter
+matrix_real.TPM_UNQUANT.filter.scale.train <- matrix_real.TPM_UNQUANT.filter.scale[ , -GREPFITHERE , colnames(matrix_real.TPM_UNQUANT.filter.scale))]
+matrix_real.TPM_UNQUANT.train <- matrix_real.TPM_UNQUANT[ , -GREPFITHERE , colnames(matrix_real.TPM_UNQUANT))]
+matrix_real.TPM_UNQUANT.test <- matrix_real.TPM_UNQUANT[ , GREPFITHERE , colnames(matrix_real.TPM_UNQUANT))]
+matrix_real.TPM_UNQUANT.together <- cbind(matrix_real.TPM_UNQUANT.train, matrix_real.TPM_UNQUANT.test)
+
+#Creating orth first, tpm adjusted values (Chris addition) Run 6
+CREATEorthTPMHERE
+matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter <- matrix.data.counts.orth.tpm.log2.quantile.species.scaled[rowSums(!is.na(matrix.data.counts.orth.tpm.log2.quantile.species.scaled)) == dim(matrix.data.counts.orth.tpm.log2.quantile.species.scaled)[2], ]
+matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale <- t(scale(t(matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter)))
+matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale.train <- matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale[ , -GREPFITHERE , colnames(matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale))]
+matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale.test <- matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale[ , GREPFITHERE , colnames(matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale))]
+matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale.together <- cbind(matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale.train, matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale.test)
+
+
+#Creating orth first, count only, fully normalised (Chris addition), we call it run 7.
+CREA_once_more_HERE
+matrix_run7.filter <- matrix_run7[rowSums(!is.na(matrix_run7)) == dim(matrix_run7)[2], ]
+matrix_run7.filter.scale <- matrix_run7.filter
+matrix_run7.filter.scale.train <- matrix_run7.filter.scale[ , -GREPFITHERE , colnames(matrix_run7.filter.scale))]
+matrix_run7.filter.scale.test <- matrix_run7.filter.scale[ , GREPFITHERE , colnames(matrix_run7.filter.scale))]
+matrix_run7.filter.scale.together <- cbind(matrix_run7.filter.scale.train, matrix_run7.filter.scale.test)
+
+# Creating the output. Michael style.
+CREATECOUNTHERE
+matrix.counts.log2.quantile.species.scaled.orth.quantile <- matrix.counts.log2.quantile.species.scaled.orth[rowSums(!is.na(matrix.counts.log2.quantile.species.scaled.orth)) == dim(matrix.counts.log2.quantile.species.scaled.orth)[2], ]
+matrix.counts.log2.quantile.species.scaled.orth.quantile.scale <- matrix.counts.log2.quantile.species.scaled.orth.quantile
+matrix.counts.log2.quantile.species.scaled.orth.quantile.scale.train <- matrix.counts.log2.quantile.species.scaled.orth.quantile.scale[ , -GREPFITHERE , colnames(matrix.counts.log2.quantile.species.scaled.orth.quantile.scale))]
+matrix.counts.log2.quantile.species.scaled.orth.quantile.scale.test <- matrix.counts.log2.quantile.species.scaled.orth.quantile.scale[ , GREPFITHERE , colnames(matrix.counts.log2.quantile.species.scaled.orth.quantile.scale))]
+matrix.counts.log2.quantile.species.scaled.orth.quantile.scale.together <- cbind(matrix.counts.log2.quantile.species.scaled.orth.quantile.scale.train, matrix.counts.log2.quantile.species.scaled.orth.quantile.scale.test)
+
+dir.create("FIGURES/Figure_of_Classifiers/VERSION_RUN/", showWarnings = FALSE)
+
+
+
+### Setting up
+
+caste <- grepl("Worker|NonReproductive", colnames(CHR_HERE_FILT.train))
+caste <- unlist(lapply(caste, function(x) { 
+  if(x){ 
+    x <- 0
+  } else{ 
+    x <- 1
+  }
+}))
+caste <- as.numeric(caste)
+
+
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Boxplot_scale.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+boxplot(CHR_HERE_FILT)
+dev.off()
+
+
+
+b.coeffs <- c()
+p.coeffs <- c()
+
+for(i in 1:dim(CHR_HERE_FILT.train[ , ])[1]){
+  
+  data <- data.frame(caste = caste, expr = as.numeric(CHR_HERE_FILT.train[i, ]))
+  regression <- lm(caste ~ expr, data)
+  s <- summary(regression)
+  b.coeffs[i] <- regression$coefficients[2]
+  p.coeffs[i] <- s$coefficients[8]
+  # boxplot(expr ~ caste, data)
+  
+}
+
+top.n <- 50 
+cutoff <- abs(b.coeffs)[order(abs(b.coeffs), decreasing = TRUE)][top.n]
+b.coeffs.sig <- abs(b.coeffs) >= cutoff
+print(sum(b.coeffs.sig))
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/B_P_coefficients.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+plot(b.coeffs, p.coeffs)
+p.coeffs.sig <- p.coeffs < 0.05
+q.coeffs <- p.adjust(p.coeffs)
+q.coeffs.sig <- q.coeffs < 0.001
+print(length(p.coeffs.sig))
+print(sum(p.coeffs.sig))
+print(sum(q.coeffs.sig))
+dev.off()
+
+#Set up output tables:
+play<-as.data.frame(CHR_HERE_FILT.train, h=T)
+play$p.coeffs<-p.coeffs
+play$q.coeffs<-q.coeffs
+withExpr<-merge(matrix_real.tpm.filter, play, by="row.names")
+write.table(withExpr, "FIGURES/Figure_of_Classifiers/VERSION_RUN/Train_table_with_significance.cpm.tsv", sep="\t", quote=F)
+withExpr2<-merge(matrix.data.tpm.orth.filter, play, by="row.names")
+write.table(withExpr2, "FIGURES/Figure_of_Classifiers/VERSION_RUN/Train_table_with_significance.raw.tsv", sep="\t", quote=F)
+
+
+####             Train data           ##########
+
+#heatmap train only   
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Train_Heatmap.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+pheatmap(CHR_HERE_FILT.train[])
+dev.off()
+
+data.pca <- prcomp(t(CHR_HERE_FILT.train[]))
+
+#PCA train only 
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Train_PCA.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+plot(data.pca$x[ , 1], data.pca$x[ , 2])
+text(data.pca$x[ , 1], data.pca$x[ , 2], labels=rownames(data.pca$x), cex= 0.7, pos=3)
+dev.off()
+
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Train_cnt_PCA.pdf"), width = 1.5 * 3.54, height = 1.5 * 3.54)
+plot(data.pca$x[ , 1], data.pca$x[ , 2])
+text(data.pca$x[ , 1], data.pca$x[ , 2], labels=rownames(data.pca$x), cex= 0.7, pos=3)
+dev.off()
+
+data.pca_raw <- prcomp(t(matrix_real.TPM_UNQUANT.filter.scale.train[]))
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Train_raw_PCA.pdf"), width = 1.5 * 3.54, height = 1.5 * 3.54)
+plot(data.pca_raw$x[ , 1], data.pca_raw$x[ , 2])
+text(data.pca_raw$x[ , 1], data.pca_raw$x[ , 2], labels=rownames(data.pca_raw$x), cex= 0.7, pos=3)
+dev.off()
+#Set up output tables:
+play_raw<-as.data.frame(matrix_real.TPM_UNQUANT.train, h=T)
+write.table(play_raw, "FIGURES/Figure_of_Classifiers/VERSION_RUN/Train_table_raw_depracated.tsv", sep="\t", quote=F)
+
+data.pca_tpm <- prcomp(t(matrix.tpm.log2.quantile.species.scaled.orth.filter.scale.train[]))
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Train_tpm_PCA.pdf"), width = 1.5 * 3.54, height = 1.5 * 3.54)
+plot(data.pca_tpm$x[ , 1], data.pca_tpm$x[ , 2])
+text(data.pca_tpm$x[ , 1], data.pca_tpm$x[ , 2], labels=rownames(data.pca_tpm$x), cex= 0.7, pos=3)
+dev.off()
+#Set up output tables:
+play_tpm<-as.data.frame(matrix.tpm.log2.quantile.species.scaled.orth.filter.scale.train, h=T)
+write.table(play_tpm, "FIGURES/Figure_of_Classifiers/VERSION_RUN/Train_table_tpm_depracated.tsv", sep="\t", quote=F)
+
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Train_Heatmap.p_coeff.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+pheatmap(CHR_HERE_FILT.train[p.coeffs.sig, ])
+dev.off()
+
+#chris additions
+
+p.coeffs.sig2 <- p.coeffs < 0.001
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Train_Heatmap.p_coeff_0.001.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+pheatmap(CHR_HERE_FILT.train[p.coeffs.sig2, ])
+dev.off()
+
+newsdf<-matrix_real.tpm.filter[p.coeffs.sig2,]
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Train_Heatmap.p_coeff_0.001_rawTPMscaled.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+pheatmap(newsdf)
+dev.off()
+
+#end of chris changes
+
+data.pca <- prcomp(t(CHR_HERE_FILT.train[p.coeffs.sig, ]))
+
+
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Train_PCA.p_coeff.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+plot(data.pca$x[ , 1], data.pca$x[ , 2])
+text(data.pca$x[ , 1], data.pca$x[ , 2], labels=rownames(data.pca$x), cex= 0.7, pos=3)
+dev.off()
+
+lengthhere3=nrow(CHR_HERE_FILT.train[q.coeffs.sig, ])
+if(!is.null(lengthhere3)){
+  if(lengthhere3){
+  pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Train_Heatmap.q_coeff.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+  pheatmap(CHR_HERE_FILT.train[q.coeffs.sig, ])
+  dev.off()
+
+  data.pca <- prcomp(t(CHR_HERE_FILT.train[q.coeffs.sig, ]))
+  pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Train_PCA.q_coeff.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+  plot(data.pca$x[ , 1], data.pca$x[ , 2])
+  text(data.pca$x[ , 1], data.pca$x[ , 2], labels=rownames(data.pca$x), cex= 0.7, pos=3)
+  dev.off()
+  }
+}
+
+if (length(species.test) >= 2){
+  pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Test_Heatmap.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+  pheatmap(CHR_HERE_FILT.test[])
+  data.pca <- prcomp(t(CHR_HERE_FILT.test[]))
+  dev.off()
+
+  pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Test_PCA.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+  plot(data.pca$x[ , 1], data.pca$x[ , 2])
+  text(data.pca$x[ , 1], data.pca$x[ , 2], labels=rownames(data.pca$x), cex= 0.7, pos=3)
+  dev.off()
+
+  pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Test_Heatmap.p_coeff.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+  pheatmap(CHR_HERE_FILT.test[p.coeffs.sig, ])
+  data.pca <- prcomp(t(CHR_HERE_FILT.test[p.coeffs.sig, ]))
+  dev.off()
+
+  pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Test_PCA.p_coeff.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+  plot(data.pca$x[ , 1], data.pca$x[ , 2])
+  text(data.pca$x[ , 1], data.pca$x[ , 2], labels=rownames(data.pca$x), cex= 0.7, pos=3)
+  dev.off()
+  
+  lengthhere2=nrow(CHR_HERE_FILT.test[q.coeffs.sig, ])
+  if(!is.null(lengthhere2)){
+  if(lengthhere2){
+    pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Test_Heatmap.q_coeff.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+    pheatmap(CHR_HERE_FILT.test[q.coeffs.sig, ])
+    data.pca <- prcomp(t(CHR_HERE_FILT.test[q.coeffs.sig, ]))
+    dev.off()
+
+    pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Test_PCA.q_coeff.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+    plot(data.pca$x[ , 1], data.pca$x[ , 2])
+    text(data.pca$x[ , 1], data.pca$x[ , 2], labels=rownames(data.pca$x), cex= 0.7, pos=3)
+    dev.off()
+  }
+  }
+}
+
+
+# Together
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Together_Heatmap.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+pheatmap(CHR_HERE_FILT.together[])
+dev.off()
+
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Together_PCA.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+data.pca <- prcomp(t(CHR_HERE_FILT.together[]))
+plot(data.pca$x[ , 1], data.pca$x[ , 2])
+text(data.pca$x[ , 1], data.pca$x[ , 2], labels=rownames(data.pca$x), cex= 0.7, pos=3)
+dev.off()
+
+#plot(data.pca$x[ , 1], data.pca$x[ , 3])
+#text(data.pca$x[ , 1], data.pca$x[ , 3], labels=rownames(data.pca$x), cex= 0.7, pos=3)
+
+#plot(data.pca$x[ , 2], data.pca$x[ , 3])
+#text(data.pca$x[ , 2], data.pca$x[ , 3], labels=rownames(data.pca$x), cex= 0.7, pos=3)
+
+
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Together_Heatmap.p_coeff.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+pheatmap(CHR_HERE_FILT.together[p.coeffs.sig, ])
+dev.off()
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Together_PCA.p_coeff.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+data.pca <- prcomp(t(CHR_HERE_FILT.together[p.coeffs.sig, ]))
+plot(data.pca$x[ , 1], data.pca$x[ , 2])
+text(data.pca$x[ , 1], data.pca$x[ , 2], labels=rownames(data.pca$x), cex= 0.7, pos=3)
+dev.off()
+
+
+lengthhere=nrow(CHR_HERE_FILT.together[q.coeffs.sig, ])
+if(!is.null(lengthhere)){
+if(lengthhere){
+  pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Together_Heatmap.q_coeff.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+  pheatmap(CHR_HERE_FILT.together[q.coeffs.sig, ])
+  dev.off()
+  pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Together_PCA.q_coeff.pdf"), width = 3 * 1.5 * 3.54, height = 1.5 * 3.54)
+  data.pca <- prcomp(t(CHR_HERE_FILT.together[q.coeffs.sig, ]))
+  plot(data.pca$x[ , 1], data.pca$x[ , 2])
+  text(data.pca$x[ , 1], data.pca$x[ , 2], labels=rownames(data.pca$x), cex= 0.7, pos=3)
+  dev.off()
+}
+}
+
+
+##### SVM #####
+
+
+
+
+##### Predictions on the test data - all orths.
+
+data.train <- CHR_HERE_FILT.train[, ]
+data.test <- CHR_HERE_FILT.test[, ]
+all_numero<-nrow(data.test)
+# Perform a grid search to optimise SVM parameters.
+tuneResult <- tune("svm", train.x = t(data.train), train.y = caste, probability = TRUE, kernel = "linear", tunecontrol = tune.control(sampling = "cross", cross = num.species.train))
+
+# Final classifier.
+classifier <- tuneResult$best.model
+
+# Make predictions for the test data.
+predictionAll <- predict(classifier, t(data.test), type = "class", probability = TRUE)
+
+
+
+## Predictions on the test data - p-value significant orths.
+
+data.train <- CHR_HERE_FILT.train[p.coeffs.sig, ]
+data.test <- CHR_HERE_FILT.test[p.coeffs.sig, ]
+p_numero<-nrow(data.test)
+
+# Perform a grid search to optimise SVM parameters.
+tuneResult <- tune("svm", train.x = t(data.train), train.y = caste, probability = TRUE, kernel = "linear", tunecontrol = tune.control(sampling = "cross", cross = num.species.train))
+
+# Final classifier.
+classifier <- tuneResult$best.model
+
+# Make predictions for the test data.
+predictionP <- predict(classifier, t(data.test), type = "class", probability = TRUE)
+
+
+
+## Predictions on the test data - q value significant orths. 
+
+data.train <-CHR_HERE_FILT.train[q.coeffs.sig, ]
+data.test <- CHR_HERE_FILT.test[q.coeffs.sig, ]
+q_numero<-nrow(data.test)
+my_sum_q=sum(q.coeffs.sig)
+
+predictionQ <-0
+if(my_sum_q >=2){
+if (q_numero){
+  # Perform a grid search to optimise SVM parameters.
+  tuneResult <- tune("svm", train.x = t(data.train), train.y = caste, probability = TRUE, kernel = "linear", tunecontrol = tune.control(sampling = "cross", cross = num.species.train))
+
+  # Final classifier.
+  classifier <- tuneResult$best.model
+
+  # Make predictions for the test data.
+  predictionQ <- predict(classifier, t(data.test), type = "class", probability = TRUE)
+
+}
+}
+
+
+# Create pdf for plot.
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Classification_Pcan-species-scaled.pdf"),
+    width = 3 * 1.5 * 3.54,
+    height = 1.5 * 3.54)
+
+par(las=2)
+par(mfrow=c(1,3))
+par(mar=c(8,8,1,1)) # adjust as needed
+
+barplot(as.matrix(predictionAll)[,1], ylim = c(0, 1), ylab = "Likelihood of being Queen", main = paste0("All -", all_numero)  )
+abline(h=0.5)
+barplot(as.matrix(predictionP)[,1], ylim = c(0, 1), ylab = "Likelihood of being Queen", main = paste0("Pval -", p_numero))
+abline(h=0.5)
+barplot(as.matrix(predictionQ)[,1], ylim = c(0, 1), ylab = "Likelihood of being Queen", main = paste0("Qval -", q_numero))
+abline(h=0.5)
+
+dev.off()
+
+
+# Create pdf for plot.
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Classification_Pcan-species-scaled.wide.pdf"),
+    width = 3 * 1.5 * 3.54 * 2,
+    height = 1.5 * 3.54)
+
+par(las=2)
+par(mfrow=c(1,3))
+par(mar=c(8,8,1,1)) # adjust as needed
+
+barplot(as.matrix(predictionAll)[,1], ylim = c(0, 1), ylab = "Likelihood of being Queen", main = "All")
+abline(h=0.5)
+barplot(as.matrix(predictionP)[,1], ylim = c(0, 1), ylab = "Likelihood of being Queen", main = "P-val sig")
+abline(h=0.5)
+barplot(as.matrix(predictionQ)[,1], ylim = c(0, 1), ylab = "Likelihood of being Queen", main = "Q-val sig")
+abline(h=0.5)
+
+dev.off()
+
+
+
+#Print out a small table with the final predictions
+newsde<-c(predictionP,predictionAll)
+write.table(newsde, "FIGURES/Figure_of_Classifiers/VERSION_RUN/Predict.tsv", sep="\t", quote=F)
+
+
+
+
+
+#Run the leave one out script
+
+if (length(species.train) >= 4){
+
+  ##### Predictions from leave-one-out SVM on the training data - all orths.
+
+  data <- CHR_HERE_FILT.train[, ]
+  predictionAll <- data.frame(matrix(nrow = 1, ncol = 2 * num.species.train))
+  colnames(predictionAll) <- colnames(data)
+  set <- 1:(2 * num.species.train)
+
+  for(j in 1:num.species.train){
+    
+    idx.test <- c(2 * j - 1, 2 * j)
+    idx.train <- set[set != idx.test]
+    
+    data.train <- data[, idx.train]
+    data.test <- data[, idx.test]
+    
+    # Perform a grid search to optimise SVM parameters.
+    tuneResult <- tune("svm", train.x = t(data.train), train.y = caste[idx.train], probability = TRUE, kernel = "radial", tunecontrol = tune.control(sampling = "cross", cross = num.species.train - 2))
+    
+    # Final classifier.
+    classifier <- tuneResult$best.model
+    
+    # Make predictions for the test data.
+    pred <- predict(classifier, t(data.test), type = "class", probability = TRUE)
+    
+    # Add to data frame.
+    predictionAll[1, idx.test] <- pred
+    
+  }
+
+
+  ## Predictions from leave-one-out SVM on the training data - p-value significant orths.
+
+  data <- CHR_HERE_FILT.train[p.coeffs.sig, ]
+  predictionP <- data.frame(matrix(nrow = 1, ncol = 2 * num.species.train))
+  colnames(predictionP) <- colnames(data)
+  set <- 1:(2 * num.species.train)
+
+  for(j in 1:num.species.train){
+    
+    idx.test <- c(2 * j - 1, 2 * j)
+    idx.train <- set[set != idx.test]
+    
+    data.train <- data[, idx.train]
+    data.test <- data[, idx.test]
+    
+    # Perform a grid search to optimise SVM parameters.
+    tuneResult <- tune("svm", train.x = t(data.train), train.y = caste[idx.train], probability = TRUE, kernel = "radial", tunecontrol = tune.control(sampling = "cross", cross = num.species.train - 2))
+    
+    # Final classifier.
+    classifier <- tuneResult$best.model
+    
+    # Make predictions for the test data.
+    pred <- predict(classifier, t(data.test), type = "class", probability = TRUE)
+    
+    # Add to data frame.
+    predictionP[1, idx.test] <- pred
+    
+  }
+
+  # Predictions from leave-one-out SVM on the training data - q-value significant orths.
+
+  data <- CHR_HERE_FILT.train[q.coeffs.sig, ]
+  len_hereq=nrow(data)
+  if (len_hereq){
+    predictionQ <- data.frame(matrix(nrow = 1, ncol = 2 * num.species.train))
+    colnames(predictionQ) <- colnames(data)
+    set <- 1:(2 * num.species.train)
+
+    for(j in 1:num.species.train){
+      
+      idx.test <- c(2 * j - 1, 2 * j)
+      idx.train <- set[set != idx.test]
+      
+      data.train <- data[, idx.train]
+      data.test <- data[, idx.test]
+      
+      # Perform a grid search to optimise SVM parameters.
+      tuneResult <- tune("svm", train.x = t(data.train), train.y = caste[idx.train], probability = TRUE, kernel = "radial", tunecontrol = tune.control(sampling = "cross", cross = num.species.train - 2))
+      
+      # Final classifier.
+      classifier <- tuneResult$best.model
+      
+      # Make predictions for the test data.
+      pred <- predict(classifier, t(data.test), type = "class", probability = TRUE)
+      
+      # Add to data frame.
+      predictionQ[1, idx.test] <- pred
+      
+    }
+  }
+  
+
+  # Create pdf for plot.
+  pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Classification_leave-one-out-species-scaled.pdf"),
+      width = 3 * 1.5 * 3.54,
+      height = 1.5 * 3.54)
+
+  # Plot
+  par(las=2)
+  par(mfrow=c(1,3))
+  par(mar=c(8,8,1,1)) # adjust as needed
+  barplot(as.matrix(predictionAll[1,  ]), ylim = c(0, 1), ylab = "Likelihood of being Queen", main = "All")
+  abline(h=0.5)
+  barplot(as.matrix(predictionP[1, ]), ylim = c(0, 1), ylab = "Likelihood of being Queen", main = "P-val sig")
+  abline(h=0.5)
+  if (len_hereq){
+  barplot(as.matrix(predictionQ[1, ]), ylim = c(0, 1), ylab = "Likelihood of being Queen", main = "Q-val sig")
+  abline(h=0.5)
+  }
+
+
+  dev.off()
+
+#if there is at least 4 species in train (end of code block)
+}
+
+
+
+#Run the third part of the svm:
+
+##### Predictions from leave-one-out ordering genes by beta-coefficient and progressively filtering.
+num.species.all <- length(species.all)
+data <- CHR_HERE_FILT[, ]
+num.genes <- dim(CHR_HERE_FILT)[1]
+predictionAll <- data.frame(matrix(nrow = 95, ncol = 2 * num.species))
+colnames(predictionAll) <- colnames(data)
+set <- 1:(2 * num.species.all)
+
+filter.pc <- c(seq(0.01, 1, 0.01))
+filter.num <- floor(filter.pc * num.genes)
+
+for(j in 1:num.species.all){
+  idx.test <- c(2 * j - 1, 2 * j)
+  #idx.test <- c(2 * 1 - 1, 2 * 1)
+  idx.train <- set[set != idx.test]
+  
+  data.train <- data[, idx.train]
+  data.test <- data[, idx.test]
+  num.species.here.train <- length(idx.train)
+  #Redo the feature selection on the train set.
+  caste <- grepl("Worker|NonReproductive", colnames(data.train))
+  caste <- unlist(lapply(caste, function(x) { 
+    if(x){ 
+      x <- 0
+    } else{ 
+      x <- 1
+    }
+  }))
+  caste <- as.numeric(caste)
+
+  b.coeffs <- c()
+  p.coeffs <- c()
+
+  for(i in 1:dim(data.train[ , ])[1]){
+    data2 <- data.frame(caste = caste, expr = as.numeric(data.train[i, ]))
+    regression <- lm(caste ~ expr, data2)
+    s <- summary(regression)
+    b.coeffs[i] <- regression$coefficients[2]
+    p.coeffs[i] <- s$coefficients[8] 
+  }
+
+  top.n <- 50 
+  cutoff <- abs(b.coeffs)[order(abs(b.coeffs), decreasing = TRUE)][top.n]
+  b.coeffs.sig <- abs(b.coeffs) >= cutoff
+  p.coeffs.sig <- p.coeffs < 0.05
+  q.coeffs <- p.adjust(p.coeffs)
+  q.coeffs.sig <- q.coeffs < 0.05
+  #Redo the feature selection on the train set. END
+
+
+  
+  
+  for(i in 1:95){
+
+    top.n <- filter.num[i] 
+    cutoff <- abs(b.coeffs)[order(abs(b.coeffs), decreasing = TRUE)][top.n]
+    b.coeffs.sig.extra <- abs(b.coeffs) <= cutoff  
+
+    data.train.2 <- data.train[b.coeffs.sig.extra, ]
+    data.test.2 <- data.test[b.coeffs.sig.extra, ]
+
+    # Perform a grid search to optimise SVM parameters.
+    tuneResult <- tune("svm", train.x = t(data.train.2), train.y = caste, probability = TRUE, kernel = "linear", tunecontrol = tune.control(sampling = "cross", cross = num.species.here.train - 2))
+    
+    # Final classifier.
+    classifier <- tuneResult$best.model
+    
+    # Make predictions for the test data.
+    pred <- predict(classifier, t(data.test.2), type = "class", probability = TRUE)
+    
+    # Add to data frame.
+    predictionAll[i, idx.test] <- pred
+  }
+}
+
+
+# Fix out-of-bounds errors.
+predictionAll[predictionAll < 0] <- 0
+predictionAll[predictionAll > 1] <- 1
+
+species <- colnames(predictionAll)
+colours <- c("red", "blue", "green", "orange", "purple","yellow","lightgreen","black", "grey","lightyellow","magenta","gold")
+
+# Create pdf for plot.
+pdf(file = paste("FIGURES/Figure_of_Classifiers/VERSION_RUN/Classification_confidence_leave-one-out-filterting-species-scaled.pCoeff.ChrisCorrect.pdf"),
+    width = 1.5 * 3.54,
+    height = 1.5 * 3.54)
+
+plot(rev(predictionAll[1:95,1]), type = "l", ylim = c(0, 1), col=colours[1], xlab="Percentage kept after filtering", ylab="Classification confidence values", xaxt = "n", main = "Change in classification confidence as % of genes decreased - species-scaled")
+
+CLASSI_LEAVE_ONE_OUT
+
+legend(0,1,legend = species[c(1,LEGEND_LINE_FIX)], col = colours, lty=1)
+
+axis(1, at=1:95,labels=c(95:1))
+
+dev.off()
+
+write.table(predictionAll, "FIGURES/Figure_of_Classifiers/VERSION_RUN/PredictLeaveOutALL.ChrisCorrect.tsv", sep="\t", quote=F)
+
+
+#Leave one out done properly
+
+
