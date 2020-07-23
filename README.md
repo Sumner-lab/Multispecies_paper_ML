@@ -75,12 +75,23 @@ library(probsvm)
 
 
 # **Running the script**
-
-Usage: Master.ML.pl -j <Version folder name> -f <Foreground species list (comma sep)>  -b <Background species list (comma sep)> -filter <matrix_run7.filter.scale>
+```unix
+Usage: Master.ML.pl 
+compulsory:
+            **-j** <Version folder name> 
+            **-f** <Foreground species list (comma sep)>  
+            **-b** <Background species list (comma sep)> 
+            **-filter** Choose a different daat processing procedure: <e.g. matrix_run7.filter.scale>
 
 options:    **-r**     Run the scripts through R (default = OFF).
             **-e**     Choose expression data folder (default= \"Experimental_data_merged\").
             **-orth**  Choose Orthofinder file to use in this analysis (default= \"DATA/Orthofinder/Orthofinder_24.5.2020/Orthogroups.tsv\"). 
             **-CPM**   Choose the cut off of minimal expression to be considered. Default =1.  
+```
 
 Must be the top level folder (e.g. MAIN), which should have folders DATA and scripts and FIGURES.
+
+A typical example of the script would be :
+```unix
+perl Master_ML.v5.paper.pl -j TOP5_Test_Angiopolybia_pallens_3MER -CPM 10 -f Angiopolybia_pallens -b Vespula_vulgaris,Vespa_crabro,Metapolybia_cingulata,Polybia_quadracincta -e Experimental_data_merged -orth Orthofinder/Orthogroups.copy.noMac.tsv.filt2.csv  -filter matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale -r
+```
