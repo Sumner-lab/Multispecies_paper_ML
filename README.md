@@ -12,7 +12,7 @@ The Master script requires the data to be in a specific folder ordering system w
 ```unix
 MAIN/scripts/template_scripts/
 ```
-Found in : (template_scripts)[https://github.com/Sumner-lab/Multispecies_paper_ML/tree/master/template_scripts]
+Found in : [template_scripts](https://github.com/Sumner-lab/Multispecies_paper_ML/tree/master/template_scripts)
 
 **2.** **Species** gene expression data and Trinity assemblies in :
 ```unix
