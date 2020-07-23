@@ -4,7 +4,7 @@ Scripts used for Multispecies paper (Wyatt et al. Unpublished)
 
 Master.ML.pl is a perl wrapper that creates all the R scripts necessary to run the svm analysis. 
 
-
+# SET UP
 
 The Master script requires the data to be in a specific folder ordering system with:
 
@@ -43,7 +43,7 @@ mkdir MAIN/FIGURES
 mkdir MAIN/DEGS
 
 
-**Dependencies on UCL myriad cluster**:
+# **Dependencies on UCL myriad cluster**:
 
 module unload compilers/intel/2018/update3
 
@@ -74,7 +74,7 @@ library(probsvm)
 
 
 
-**Running the script**
+# **Running the script**
 
 Usage: Master.ML.pl -j <Version folder name> -f <Foreground species list (comma sep)>  -b <Background species list (comma sep)> -filter <matrix_run7.filter.scale>
 
