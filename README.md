@@ -1,6 +1,6 @@
 # Multispecies_paper_ML
 
-Scripts used for Multispecies paper (Wyatt et al. Unpublished)
+Scripts used for Multispecies paper (Wyatt et al. Unpublished). These scripts allow a way to do svm machine learning on non-genome guided RNAseq data (Trinity), across different species. 
 
 Master.ML.pl is a perl wrapper that creates all the R scripts necessary to run the svm analysis. 
 
@@ -39,6 +39,8 @@ MAIN/DATA/Experimental_data_merged/Polistes_canadensis/Worker/RSEM.isoforms.resu
 ```unix
 MAIN/Orthofinder/Orthogroups.copy.noMac.tsv
 ```
+
+Orthology must be determined using Orthofinder, explained in methods of paper, using all the species in your analysis (based on Trinity gene names: TRINITY_DN16291_c0_g1). This involved calculation of protein fasta sequences of your species and running Orthofinder as default.
 
 **4.** Folder to be intialised:
 
