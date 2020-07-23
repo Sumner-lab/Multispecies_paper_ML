@@ -34,44 +34,36 @@ MAIN/DATA/Experimental_data_merged/Polistes_canadensis/Worker/RSEM.isoforms.resu
 ```
 **3.** Gene orthology information from Orthofinder should be found in:
 
+```unix
 MAIN/Orthofinder/Orthogroups.copy.noMac.tsv
+```
 
 **4.** Folder to be intialised:
 
+```unix
 mkdir MAIN/FIGURES
-
 mkdir MAIN/DEGS
-
+```
 
 # **Dependencies on UCL myriad cluster**:
-
+```unix
 module unload compilers/intel/2018/update3
-
 module unload mpi/intel/2018/update3/intel
-
 module unload java/1.8.0_45
-
 module add r/recommended
-
+```
 
 # **R must have the following packages installed**:
-
+```R
 library(tximport)
-
 library(tximportData)
-
 library(edgeR)
-
 library(seqinr)
-
 library(pheatmap)
-
 library(stringr)
-
 library(e1071)
-
 library(probsvm)
-
+```
 
 
 # **Running the script**
