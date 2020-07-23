@@ -1,4 +1,5 @@
 # Multispecies_paper_ML
+
 Scripts used for Multispecies paper (Wyatt et al. Unpublished)
 
 Master.ML.pl is a perl wrapper that creates all the R scripts necessary to run the svm analysis. 
@@ -6,6 +7,7 @@ Master.ML.pl is a perl wrapper that creates all the R scripts necessary to run t
 The Master script requires the data to be in a specific folder ordering system with:
 
 **1.** Scripts in the following folder:
+
 MAIN/scripts/template_scripts/
 
 **2.** **Species** gene expression data and Trinity assemblies in :
@@ -38,20 +40,34 @@ mkdir MAIN/FIGURES
 
 mkdir MAIN/DEGS
 
+
 **Dependencies on UCL myriad cluster**:
+
 module unload compilers/intel/2018/update3
+
 module unload mpi/intel/2018/update3/intel
+
 module unload java/1.8.0_45
+
 module add r/recommended
 
+
 **R must have the following packages installed**:
+
 library(tximport)
+
 library(tximportData)
+
 library(edgeR)
+
 library(seqinr)
+
 library(pheatmap)
+
 library(stringr)
+
 library(e1071)
+
 library(probsvm)
 
 
@@ -61,8 +77,11 @@ library(probsvm)
 Usage: Master.ML.pl -j <Version folder name> -f <Foreground species list (comma sep)>  -b <Background species list (comma sep)> -filter <matrix_run7.filter.scale>
 
 options:    **-r**     Run the scripts through R (default = OFF).
+
             **-e**     Choose expression data folder (default= \"Experimental_data_merged\").
+
             **-orth**  Choose Orthofinder file to use in this analysis (default= \"DATA/Orthofinder/Orthofinder_24.5.2020/Orthogroups.tsv\"). 
+
             **-CPM**   Choose the cut off of minimal expression to be considered. Default =1.  
 
 Must be the top level folder (e.g. MAIN), which should have folders DATA and scripts and FIGURES.
