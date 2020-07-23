@@ -50,6 +50,10 @@ mkdir MAIN/DEGS
 ```
 
 # **Dependencies on UCL myriad cluster**:
+
+It is recommended to run this script on a High performance cluster, as the script uses alot of RAM, but can be run locally if you have less than ~8 species (normally)
+
+For UCL myriad we need to load R to run the script.
 ```unix
 module unload compilers/intel/2018/update3
 module unload mpi/intel/2018/update3/intel
