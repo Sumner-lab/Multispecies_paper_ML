@@ -34,6 +34,18 @@ module unload mpi/intel/2018/update3/intel
 module unload java/1.8.0_45
 module add r/recommended
 
+**R must have the following packages installed**:
+library(tximport)
+library(tximportData)
+library(edgeR)
+library(seqinr)
+library(pheatmap)
+library(stringr)
+library(e1071)
+library(probsvm)
+
+
+
 **Running the script**
 
 Usage: Master.ML.pl -j <Version folder name> -f <Foreground species list (comma sep)>  -b <Background species list (comma sep)> -filter <matrix_run7.filter.scale>
