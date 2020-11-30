@@ -1,6 +1,7 @@
 # Multispecies_paper_ML
 
-Scripts used for Multispecies paper (Wyatt et al. Unpublished). These scripts allow a way to do svm machine learning on non-genome guided RNAseq data (Trinity), across different species. 
+Scripts used for Multispecies paper (Wyatt et al. Unpublished). These scripts allow a way to do svm machine learning on non-genome guided RNAseq data (Trinity), across different species. This process is not automated, and requires a lengthy process of acquiring Trinity assemblies for your species of interest (if you do not have genomes for your species), then compiling alot of data structures to make the script perform without error. Please contact the authors if you wish to embark on a similar analysis (before trying out the various scripts).
+
 
 Master.ML.pl is a perl wrapper that creates all the R scripts necessary to run the svm analysis. 
 
@@ -51,7 +52,7 @@ mkdir MAIN/DEGS
 
 # **Dependencies on UCL myriad cluster**:
 
-It is recommended to run this script on a High performance cluster, as the script uses alot of RAM, but can be run locally if you have less than ~8 species (normally)
+It is recommended to run this script on a High performance cluster, as the script uses alot of RAM, but can be run locally if have a powerful machine. These settings will be different depending on your cluster.
 
 For UCL myriad we need to load R to run the script.
 ```unix
