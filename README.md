@@ -1,6 +1,6 @@
 # Multispecies_paper_ML
 
-Scripts used for Multispecies paper (Wyatt et al. Unpublished). These scripts allow a way to do svm machine learning on non-genome guided RNAseq data (Trinity), across different species. This process is not automated, and requires a lengthy process of acquiring Trinity assemblies for your species of interest (if you do not have genomes for your species), then compiling alot of data structures to make the script perform without error. Please contact the authors if you wish to embark on a similar analysis (before trying out the various scripts).
+Scripts used for Multispecies paper (Wyatt et al. Unpublished). These scripts allow a bespoke way to do svm machine learning on non-genome guided RNAseq data (Trinity), across different species. This process is not automated, and requires a lengthy process of acquiring Trinity assemblies for your species of interest, then compiling the data in a (later explained) data structure (folder organisation) to make the script perform without error. Please contact the authors if you wish to embark on a similar analysis (before trying out the various scripts), as likely the scripts would have to be changed for another analysis.
 
 
 Master.ML.pl is a perl wrapper that creates all the R scripts necessary to run the svm analysis. 
