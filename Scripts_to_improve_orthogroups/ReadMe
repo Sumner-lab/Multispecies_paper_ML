@@ -1,0 +1,8 @@
+ReadMe
+
+Two perl scripts to increase the numbers of orthogroups comparable across species. They are specific to the set up explain in the previous help file in Multispecies_paper_ML.
+
+Refine_orthogroups.pl : This script processes an Orthofinder "Orthogroups.csv" file to check check for multiple gene isoforms for each species and refine them to just one gene entry, by checking the expression of the isoforms and printing just the most highly expressed (or if equal, the last entry with highest expression)
+
+Zero_orthogroups.v3.pl: This script processes an Orthofinder "Orthogroups.csv" file to add fake entries (written: "TRINITY_UK00000_c0_g1") for missing values where you decide how many missing values per orthogroup you will accept to fill in the blanks. e.g. if you have 7 of 9 species with an entry (gene) for a particular orthogroup, but 2/9 are missing, then you choose to fill in these blanks, but if there are 3/9 missing, you can opt to prevent these gaps being filled.
+The above script also requires that you add fake entried to the RSEM counts files and the Genome files (e.g. in my data: Angiopolybia_pallens/Pool/Pool_trinity2.fnn and  Angiopolybia_pallens/Queen/RSEM.isoforms.results2).
