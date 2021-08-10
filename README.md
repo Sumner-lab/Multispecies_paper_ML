@@ -8,7 +8,7 @@ The 3 folders contain the scripts used to:
 3. Run the DnDs analysis
 
 
-(1) SVM
+# (1) SVM
 
 Master.ML.pl is a perl wrapper that creates all the R scripts necessary to run the svm analysis. 
 
@@ -109,7 +109,7 @@ perl Master.ML.pl -j TOP5_Test_Angiopolybia_pallens_3MER -CPM 10 -f Angiopolybia
 
 
 
-(2)
+# (2) Refining the orthogroups
 
 i) Refine_orthogroups.pl
 
@@ -134,7 +134,7 @@ This script find the largest isoform representative of a gene to be used in the 
 
 
 
-(3) DnDs
+# (3) DnDs
 
 # Positive selection in nine species (wasp social spectrum)
 
