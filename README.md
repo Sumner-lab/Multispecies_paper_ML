@@ -10,7 +10,7 @@ The 3 folders contain the scripts used to:
 
 # (1) SVM
 
-Master.ML.pl is a perl wrapper that creates all the R scripts necessary to run the svm analysis. 
+This folder contains the main script "Master.ML.pl", which is a perl wrapper that creates all the R scripts necessary to run the svm analysis. It starts by creating the normalised matrix of gene counts, then creates custom R scripts from the template_scripts folder (also in this git folder), then executes the R scripts to run SVM and produce several useful plots, including the SVM certainty after feature selection.
 
 # Set Up
 
