@@ -85,7 +85,7 @@ library(probsvm)
 
 # **Running the script**
 ```unix
-Usage: Master.ML.pl -j <Version folder name> -f <Foreground species list (comma sep)>  -b <Background species list (comma sep)> -filter <matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale>
+Usage: Master.ML.pl -j <Version folder name> -f <Foreground species list (comma sep)>  -b <Background species list (comma sep)> 
 
 options:    -r     Run the scripts through R (default = OFF).
             -e     Choose expression data folder (default= \"Experimental_data_merged\").
@@ -96,8 +96,6 @@ options:    -r     Run the scripts through R (default = OFF).
 
 Must be the top level folder (e.g. Multispecies_FILES), which should have folders DATA and scripts and FIGURES.
 
-### "filter", always should be "matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale". This is the matrix of counts to run from that has first taken the counts, then calculated orthoglogy between the species to get single representative, then converted to TPMs (Transcripts per million reads), then logged, quantile scaled as described in the methods section. 
-
 *** Questions: 
     Chris Wyatt (former post-doctorate) or Seirian Sumner
 ```
@@ -106,7 +104,7 @@ Must be the top level folder (e.g. MAIN), which should have folders DATA and scr
 
 A typical example of the script would be :
 ```unix
-perl Master.ML.pl -j TOP5_Test_Angiopolybia_pallens_3MER -CPM 10 -f Angiopolybia_pallens -b Vespula_vulgaris,Vespa_crabro,Metapolybia_cingulata,Polybia_quadracincta -e Experimental_data_merged -orth Orthofinder/Orthogroups.copy.noMac.tsv.filt2.csv  -filter matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale -r
+perl Master.ML.pl -j TOP5_Test_Angiopolybia_pallens_3MER -CPM 10 -f Angiopolybia_pallens -b Vespula_vulgaris,Vespa_crabro,Metapolybia_cingulata,Polybia_quadracincta -e Experimental_data_merged -orth Orthofinder/Orthogroups.copy.noMac.tsv.filt2.csv -r
 ```
 
 
