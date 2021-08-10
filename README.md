@@ -85,7 +85,7 @@ library(probsvm)
 
 # **Running the script**
 ```unix
-Usage: Master.ML.pl -j <Version folder name> -f <Foreground species list (comma sep)>  -b <Background species list (comma sep)> -filter <matrix_run7.filter.scale>
+Usage: Master.ML.pl -j <Version folder name> -f <Foreground species list (comma sep)>  -b <Background species list (comma sep)> -filter <matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale>
 
 options:    -r     Run the scripts through R (default = OFF).
             -e     Choose expression data folder (default= \"Experimental_data_merged\").
