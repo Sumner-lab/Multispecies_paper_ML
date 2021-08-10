@@ -15,7 +15,7 @@ my $expr_data="Experimental_data_merged";
 my $run=0;
 my $cpm=1;
 my $INPUT_orthfinder_file="DATA/Orthofinder/Orthofinder_24.5.2020/Orthogroups.tsv";
-my $FILT_here;
+my $FILT_here="matrix.data.counts.orth.tpm.log2.quantile.species.scaled.filter.scale";
 my $Cost_Choice="gamma = 10^(-7:-5)";
 my $Gamma_Choice="cost = 2^(3:5)";
 
@@ -27,14 +27,13 @@ GetOptions(	  "help=s" => \$helpFlag,
 			  "CPM=s"    => \$cpm,
 			  "r"    => \$run,
 			  "orth=s"     => \$INPUT_orthfinder_file,
-			  "filter=s"	=> \$FILT_here,
-                          "gamma=s"    => \$Gamma_Choice,
-                          "cost=s"     => \$Cost_Choice
+              "gamma=s"    => \$Gamma_Choice,
+              "cost=s"     => \$Cost_Choice
 );
 
 if($helpFlag){
   die "
-Usage: Master.ML.pl -j <Version folder name> -f <Foreground species list (comma sep)>  -b <Background species list (comma sep)> -filter <matrix_run7.filter.scale>
+Usage: Master.ML.pl -j <Version folder name> -f <Foreground species list (comma sep)>  -b <Background species list (comma sep)>
 
 options:    -r     Run the scripts through R (default = OFF).
             -e     Choose expression data folder (default= \"Experimental_data_merged\").
@@ -56,12 +55,17 @@ if (defined $version && defined $foreground && defined $background){
 else{
 	die "You need to specify version, foreground and background to run correctly.
 
-Usage: Master.ML.pl -j <Version folder name> -f <Foreground species list (comma sep)>  -b <Background species list (comma sep)> -filter <matrix_run7.filter.scale>
+Usage (essential options):
+                    Master.ML.pl -j <Version folder name> \
+                    -f <Foreground species list (comma sep)>  \
+                    -b <Background species list (comma sep)> 
 
 options:    -r   Run the scripts through R (default = OFF)
             -e   Choose expression data folder (default= \"DATA\/Experimental_data\")   
             -orth  Choose Orthofinder file to use in this analysis (default= \"DATA/Orthofinder/Orthofinder_24.5.2020/Orthogroups.tsv\").  
             -CPM   Choose the cut off of minimal expression to be considered. Default =1. 
+            -Gamma Choose the gamma parameters to search.
+            -Cost  Choose the cost parameters to search.
 
 Must be the top level folder (e.g. Multispecies_FILES), which should have folders DATA and scripts and FIGURES.
 
@@ -71,7 +75,7 @@ Must be the top level folder (e.g. Multispecies_FILES), which should have folder
 }
 
 
-my $script_whole=" Master.ML.pl -j $version -f $foreground -b $background -filter $FILT_here -e $expr_data -CPM $cpm -orth $INPUT_orthfinder_file\n";
+my $script_whole=" Master.ML.pl -j $version -f $foreground -b $background -e $expr_data -CPM $cpm -orth $INPUT_orthfinder_file\n";
 `echo $script_whole > Script_used.txt`;
 
 #Parse the names of the species ebing run, to paste them correctly into the R scripts.
