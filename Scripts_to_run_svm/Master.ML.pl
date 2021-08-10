@@ -16,6 +16,8 @@ my $run=0;
 my $cpm=1;
 my $INPUT_orthfinder_file="DATA/Orthofinder/Orthofinder_24.5.2020/Orthogroups.tsv";
 my $FILT_here;
+my $Cost_Choice="gamma = 10^(-7:-5)";
+my $Gamma_Choice="cost = 2^(3:5)";
 
 GetOptions(	  "help=s" => \$helpFlag,
 			  'j=s'    => \$version,
@@ -26,6 +28,8 @@ GetOptions(	  "help=s" => \$helpFlag,
 			  "r"    => \$run,
 			  "orth=s"     => \$INPUT_orthfinder_file,
 			  "filter=s"	=> \$FILT_here,
+                          "gamma=s"    => \$Gamma_Choice,
+                          "cost=s"     => \$Cost_Choice
 );
 
 if($helpFlag){
@@ -36,6 +40,8 @@ options:    -r     Run the scripts through R (default = OFF).
             -e     Choose expression data folder (default= \"Experimental_data_merged\").
             -orth  Choose Orthofinder file to use in this analysis (default= \"DATA/Orthofinder/Orthofinder_24.5.2020/Orthogroups.tsv\"). 
             -CPM   Choose the cut off of minimal expression to be considered. Default =1.  
+            -Gamma Choose the gamma parameters to search.
+            -Cost  Choose the cost parameters to search.
 
 Must be the top level folder (e.g. Multispecies_FILES), which should have folders DATA and scripts and FIGURES.
 
@@ -83,8 +89,11 @@ my $tbd_p=join(" ", @combined);
 print "$tbd_p\n";
 my $len_test=scalar(@FG);
 
+#Make output folders
 `mkdir -p DATA/Orthofinder/$version`;
-
+`mkdir -p DEGS`;
+`mkdir -p FIGURES`;
+`mkdir -p FIGURES/Figure_of_Classifiers`;
 #Make Orthofinder files, based on the input given.
 
 my $orthogroupscsv="$INPUT_orthfinder_file";
@@ -96,7 +105,13 @@ open(my $OUT_COUNT, ">", $OUTorthogroupsCOUNT)   or die "Could not open $OUTorth
 my $OUTorthogroupsSINGLE="DATA/Orthofinder/$version\/SingleCopyOrthogroups.txt";
 open(my $OUT_SINGLE, ">", $OUTorthogroupsSINGLE)   or die "Could not open $OUTorthogroupsSINGLE \n";
 
+#Add line if you have mac ending on your orthofinder file.
 #`tr '\\r' '\\n' < DATA/Orthofinder/Orthofinder_GOLD/Orthogroups.csv > DATA/Orthofinder/Orthofinder_GOLD/Orthogroups.csv`
+
+#Print statements to show output locations etc.
+print "You are using Orthofinder file : DATA/Orthofinder/$version\/Orthogroups.csv\n";
+print "OUtput Figures in ...\n";
+
 
 my $head=<$IN_b>;
 $head =~ s/[\r\n]+//g;
@@ -222,7 +237,7 @@ print "Making getExpression script\n";
 
 #Fix script 3:
 print "Making getResults script\n";
-`perl -pi.back -e 's/VERSION_RUN/$version\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN7 `;
+`perl -pi.back -e 's/VERSION_RUN/$version\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
 
 my @list_counts;
 my @list_counts2;
@@ -260,41 +275,58 @@ my $join_count8=join(",", @list_counts8);
 my $n_classi=3;
 my $n_colur=2;
 my @new_lines;
+my @new_lines2;
 my @new_numbers;
+my @new_numbers2;
 foreach my $num_samples (@combined){
 	my $lineheres="lines(rev(predictionAll[1:100\,$n_classi\]), col=colours[$n_colur\])";
+	my $lineheres2="lines(rev(predictionAll[2:100\,$n_classi+1\]), col=colours[$n_colur\])";
 	push (@new_lines, "$lineheres");
+	push (@new_lines2, "$lineheres2");
 	push (@new_numbers, "$n_classi");
+	my $added=$n_classi+1;
+	push (@new_numbers2, "$added");
 	$n_classi++;
 	$n_classi++;
 	$n_colur++;
 }
 my $joint_pred_lines=join("\n", @new_lines);
+my $joint_pred_lines2=join("\n", @new_lines2);
 my $joint_number_lines=join("\,", @new_numbers);
-`perl -pi.back -e 's/CLASSI_LEAVE_ONE_OUT/$joint_pred_lines\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN7 `;
-`perl -pi.back -e 's/LEGEND_LINE_FIX/$joint_number_lines\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN7 `;
+my $joint_number_lines2=join("\,", @new_numbers2);
+`perl -pi.back -e 's/CLASSI_LEAVE_ONE_OUT/$joint_pred_lines\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
+`perl -pi.back -e 's/ASSI_LEAVE_ONE_OUTv2/$joint_pred_lines2\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
+`perl -pi.back -e 's/LEGEND_LINE_FIX/$joint_number_lines\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
+`perl -pi.back -e 's/GEND_LINE_FIXv2/$joint_number_lines2\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
 
 
-`perl -pi.back -e 's/CREATECOUNTHERE/matrix.counts.log2.quantile.species.scaled.orth <- cbind($join_count\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN7 `;
-`perl -pi.back -e 's/CREATECOUNTAGAIN2/matrix.data.tpm.orth <- cbind($join_count2\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN7 `;
-`perl -pi.back -e 's/CREATETPMHERE/matrix.tpm.log2.quantile.species.scaled.orth <- cbind($join_count3\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN7 `;
-`perl -pi.back -e 's/CREATEorthTPMHERE/matrix.data.counts.orth.tpm.log2.quantile.species.scaled <- cbind($join_count4\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN7 `;
-`perl -pi.back -e 's/CREATE_REAL_TPM_HERE/matrix_real.tpm <- cbind($join_count5\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN7 `;
-`perl -pi.back -e 's/CREATE_UNQUANTILED/matrix_real.UNQ <- cbind($join_count6\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN7 `;
-`perl -pi.back -e 's/CREATE_LOG2_TPM_UNQUANT/matrix_real.TPM_UNQUANT <- cbind($join_count7\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN7 `;
-`perl -pi.back -e 's/CREA_once_more_HERE/matrix_run7 <- cbind($join_count8\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN7 `;
+`perl -pi.back -e 's/CREATECOUNTHERE/matrix.counts.log2.quantile.species.scaled.orth <- cbind($join_count\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
+`perl -pi.back -e 's/CREATECOUNTAGAIN2/matrix.data.tpm.orth <- cbind($join_count2\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
+`perl -pi.back -e 's/CREATETPMHERE/matrix.tpm.log2.quantile.species.scaled.orth <- cbind($join_count3\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
+`perl -pi.back -e 's/CREATEorthTPMHERE/matrix.data.counts.orth.tpm.log2.quantile.species.scaled <- cbind($join_count4\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
+`perl -pi.back -e 's/CREATE_REAL_TPM_HERE/matrix_real.tpm <- cbind($join_count5\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
+`perl -pi.back -e 's/CREATE_UNQUANTILED/matrix_real.UNQ <- cbind($join_count6\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
+`perl -pi.back -e 's/CREATE_LOG2_TPM_UNQUANT/matrix_real.TPM_UNQUANT <- cbind($join_count7\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
+`perl -pi.back -e 's/CREA_once_more_HERE/matrix_run7 <- cbind($join_count8\)\/g;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
 
-`perl -pi.back -e 's/GREPFITHERE/grep(\"$joint_short_test\"/gi;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN7 `;
+`perl -pi.back -e 's/GREPFITHERE/grep(\"$joint_short_test\"/gi;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
 
-`perl -pi.back -e 's/CHR_HERE_FILT/$FILT_here\/gi;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN7 `;
+`perl -pi.back -e 's/CHR_HERE_FILT/$FILT_here\/gi;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
+
+
+#Fix search parameter options
+`perl -pi.back -e 's/CHANGE_SEARCH_COST_OPS/$Cost_Choice\/gi;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
+`perl -pi.back -e 's/CHANGE_SEARCH_GAMA_OPS/$Gamma_Choice\/gi;' scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 `;
 
 if ($run){
 	print "Running R script 1\n";
 	`R --vanilla < scripts/$version\/getGeneSetsOrthofinder.noNameReplace.R > output.ofthis.test_1`;
+	print "Loaded Genes sets correctly\n";
 	print "Running R script 2\n";
 	`R --vanilla < scripts/$version\/getExpressionAllOrthofinder.noNameReplace.R > output.ofthis.test_2`;
+	print "Calculated Gene expression normalisation ready for SVM\n";
 	print "Running R script 3\n";
-	`R --vanilla < scripts/$version\/getResultsOrthofinder_scaled.R_RUN7 > output.ofthis.test_3`;
+	`R --vanilla < scripts/$version\/getResultsOrthofinder_scaled.R_RUN9 > output.ofthis.test_3`;
 	print "\nResults are in FIGURES/Figure_of_Classifiers\n";
 }
 else{

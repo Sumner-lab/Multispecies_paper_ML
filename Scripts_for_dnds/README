@@ -1,0 +1,3 @@
+# Positive selection in nine species (wasp social spectrum)
+
+Using the nucleotide fasta of 1:1 orthogroups for each species (see WHATIDID.txt for details), we aligned sequences for the same orthogroup (see scripts in aligning-with-prank). We then calculated dnds ratios (see scripts in calculating-dnds-with-codeml) for all species and for the Polistines only (see scripts in subsetting-phylip-files-for-polistines). We analysed the results with R (see scripts in analysing-results-with-R).

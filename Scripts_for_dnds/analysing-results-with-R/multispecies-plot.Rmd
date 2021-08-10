@@ -1,0 +1,658 @@
+---
+  title: "Positive selection in multispecies projects"
+author: "Emeline Favreau"
+date: "08/03/2021"
+output: html_document
+---
+  
+  Copyright 2021 Emeline Favreau, University College London.
+
+---
+  ##### Objective of analysis
+  
+  *Branch model*
+  We obtained the dN/dS value for 1,971 orthogroups shared between 9 species under the null model of all branches being equal (no variation in dN/dS ratios between branches). We then obtained dN/dS values under the alternative model, for which one species is on the foreground branch and all other species on the background (this allows for 2 dN/dS ratios). Because our current analysis is exploratory, this alternative model is applied nine times, one for each species on the foreground branch.
+
+To detect the variation of dn/ds ratio across lineages, we apply log-likelihood tests to compare which model (null or alternative) fits the data best. Then we assess the significance of the result by a test statistics (by calculating a chi-square critical value and a p value).
+
+*Branch-site model*
+  Using single-copy orthologous genes for the nine species (obtained from OrthoFinder analysis of Trinity output), we aligned nucleotide sequences for each of the 1,971 orthogroups, using PRANK. For each species and for each orthogroup, we then calculated dn/ds ratios (omega) in a null hypothesis model in PAML codeml (omega fixed at 1, model = 2, NSSites = 2, tree file with one species branch as foreground) and in an alternative hypothesis model (omega not fixed, all other parameters set as the null model). We assessed log likelihoods using chi-square test and reported the adjusted p-values using R.
+
+```{r background info, eval = FALSE, echo = FALSE, include = FALSE}
+# Further reading: http://www.cbs.dtu.dk/dtucourse/cookbooks/gorm/27615/lrt.php
+# When evaluating which gene experienced positive selection in relation to its orthogenes in different species, it is important to include the following values:
+# 
+#     - w_M0: dn/ds of this orthogroup in the null model (all branches equal)
+#     - np_M0: number of parameters in the null model 
+#     - lnL_M0: log-likelihood that the null model fits the data
+#     - np_M2: number of parameters in the alternative model
+#     - lnL_M2 log-likelihood that the alternative model fits the data
+#     - background_w: background dn/ds in the alternative model
+#     - foreground_w: foreground dn/ds in the alternative model
+#     - kappaM2: transition/transversion rate ratio
+#     - TestStatistic: D value, twice the difference in log-likelihoods is computed
+#     - DF: degrees of freedom for chi test
+#     - chiTest: the p value from the chi test, associated with significance of log-likelihood test. P-values under 0.05 show significant best fit of the data by alternative model.
+#  
+# Thus, orthogenes with a foreground_w above 1 and with a p-value lower than 0.05 should be treated as having experienced positive/relaxed selection.
+```
+
+##### Analysis steps:
+- Obtaining data
+- make a phylogenetic tree
+- Branch model (Aim 1): calculate number of genes under positive selection
+- Branch model (Aim 2): adjust for multiple comparison and compare
+- Branch-site model (Aim 3): calculate number of genes under positive selection
+- Branch-site model (Aim 4): adjust for multiple comparison and compare
+
+
+
+```{r load all the libraries, eval = TRUE, echo = FALSE, include = FALSE}
+# get libraries
+basic_libraries <- c("ggplot2",
+                     "tidyverse",
+                     "phytools")
+
+for (lib in basic_libraries) {
+  if (require(package = lib, character.only = TRUE)) {
+    print("Successful")
+  } else {
+    print("Installing")
+    install.packages(lib)
+    library(lib, character.only = TRUE )
+  }
+}
+
+library("treeio")
+library("ggtree")
+
+load("multispecies-dnds-plots.RData")
+
+complexVsSimplePolistines <- read.delim("~/Documents/local_myriad/complexVsSimplePolistines",
+                                        stringsAsFactors = FALSE)
+
+
+
+simpleVscomplexPolistines <- read.delim("~/Documents/local_myriad/simpleVscomplexPolistines",
+                                        stringsAsFactors = FALSE)
+
+complexVsSimplePolistines$chiTest <- as.numeric(complexVsSimplePolistines$chiTest)
+simpleVscomplexPolistines$chiTest <- as.numeric(simpleVscomplexPolistines$chiTest)
+```
+
+
+
+##### Aim 6: Plot dN/dS between groups of species (complex vs simple)
+
+```{r dN/dS plot between phenotypes, eval = TRUE, echo = FALSE, include = TRUE}
+# inspired by Shell et al 2021 Figure 3b
+
+# data: agelaia_results
+# reduce data to pvalue < 0.05
+agelaia_results        <- agelaia_results %>% filter(chiTest <= 0.05)
+angiopolybia_results   <- angiopolybia_results %>% filter(chiTest <= 0.05)
+brachygastra_results   <- brachygastra_results %>% filter(chiTest <= 0.05)
+mischocyttarus_results <- mischocyttarus_results %>% filter(chiTest <= 0.05)
+metapolybia_results    <- metapolybia_results %>% filter(chiTest <= 0.05)
+polybia_results        <- polybia_results %>% filter(chiTest <= 0.05)
+polistes_results       <- polistes_results %>% filter(chiTest <= 0.05)
+vespa_results          <- vespa_results %>% filter(chiTest <= 0.05)
+vespula_results        <- vespula_results %>% filter(chiTest <= 0.05)
+complexPolistines_results   <- complexVsSimplePolistines %>% filter(chiTest <= 0.05)
+simplePolistines_results   <- simpleVscomplexPolistines %>% filter(chiTest <= 0.05)
+
+
+# x axis: dN/dS of foreground branch in M0 model (NSites = 0, model = 0, aka branch model)
+# for all orthogroups, then maybe for orthogroups with p<0.05
+# x <- agelaia_results$foreground_w
+
+# dataframe with orthogroups and dnds in background for all species
+# including whether they are complex or simple
+# combine info about species, omega and social complexity level
+dnds_all_distribution_df <- rbind(data.frame(orthogroup = agelaia_results$orthogroup,
+                                   dnds = agelaia_results$foreground_w,
+                                   species = "agelaia",
+                                   sociality = "complex"),
+                                  data.frame(orthogroup = angiopolybia_results$orthogroup,
+                                             dnds = angiopolybia_results$foreground_w,
+                                             species = "angiopolybia",
+                                             sociality = "simple"),
+                                  data.frame(orthogroup = brachygastra_results$orthogroup,
+                                             dnds = brachygastra_results$foreground_w,
+                                             species = "brachygastra",
+                                             sociality = "complex"),
+                                  data.frame(orthogroup = metapolybia_results$orthogroup,
+                                             dnds = metapolybia_results$foreground_w,
+                                             species = "metapolybia",
+                                             sociality = "simple"),
+                                  data.frame(orthogroup = mischocyttarus_results$orthogroup,
+                                             dnds = mischocyttarus_results$foreground_w,
+                                             species = "mischocyttarus",
+                                             sociality = "simple"),
+                                  data.frame(orthogroup = polistes_results$orthogroup,
+                                             dnds = polistes_results$foreground_w,
+                                             species = "polistes",
+                                             sociality = "simple"),
+                                  data.frame(orthogroup = polybia_results$orthogroup,
+                                             dnds = polybia_results$foreground_w,
+                                             species = "polybia",
+                                             sociality = "complex"),
+                                  data.frame(orthogroup = vespa_results$orthogroup,
+                                             dnds = vespa_results$foreground_w,
+                                             species = "vespa",
+                                             sociality = "complex"),
+                                  data.frame(orthogroup = vespula_results$orthogroup,
+                                             dnds = vespula_results$foreground_w,
+                                             species = "vespula",
+                                             sociality = "complex"),
+                                  data.frame(orthogroup = complexPolistines_results$orthogroup,
+                                             dnds = complexPolistines_results$foreground_w,
+                                             species = "complexPolistines",
+                                             sociality = "complex"),
+                                  data.frame(orthogroup = simplePolistines_results$orthogroup,
+                                             dnds = simplePolistines_results$foreground_w,
+                                             species = "simplePolistines",
+                                             sociality = "simple"))
+
+
+# any value over 2 (positive selection), becomes 2
+dnds_all_distribution_df$dnds[dnds_all_distribution_df$dnds > 2] <- 2
+
+
+# distribution plot per complexity level
+# ggplot(test, aes(x = dnds)) +
+#   geom_histogram(binwidth = 0.01)
+# ggplot(dnds_all_distribution_df, aes(x = dnds, fill = factor(sociality))) +
+#   geom_density(alpha = 0.5) + xlim(0, 1)
+dnds_all_distribution_df[is.na(dnds_all_distribution_df$dnds),]
+# calculate global median dnds
+global_median_dnds <- median(dnds_all_distribution_df$dnds)
+
+# calculate median for simple
+simple_median_dnds <- median(dnds_all_distribution_df$dnds[dnds_all_distribution_df$sociality == "simple"])
+complex_median_dnds <- median(dnds_all_distribution_df$dnds[dnds_all_distribution_df$sociality == "complex"])
+
+# In order of complexity: Mischo, Polistes, Angio, Meta, Polybia, Agelaia, Brachy, Vespa, Vespula
+mischocyttarus_median_dnds <- median(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "mischocyttarus"])
+polistes_median_dnds <- median(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "polistes"])
+angiopolybia_median_dnds <- median(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "angiopolybia"])
+metapolybia_median_dnds <- median(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "metapolybia"])
+polybia_median_dnds <- median(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "polybia"])
+agelaia_median_dnds <- median(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "agelaia"])
+
+brachygastra_median_dnds <- median(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "brachygastra"])
+vespa_median_dnds <- median(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "vespa"])
+vespula_median_dnds <- median(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "vespula"])
+
+# mischocyttarus_median_dnds
+# polistes_median_dnds
+# angiopolybia_median_dnds
+# metapolybia_median_dnds
+# polybia_median_dnds
+# agelaia_median_dnds
+# brachygastra_median_dnds
+# vespa_median_dnds
+# vespula_median_dnds
+
+# In order of complexity: Mischo, Polistes, Angio, Meta, Polybia, Agelaia, Brachy, Vespa, Vespula
+mischocyttarus_mean_dnds <- mean(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "mischocyttarus"])
+polistes_mean_dnds <- mean(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "polistes"])
+angiopolybia_mean_dnds <- mean(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "angiopolybia"])
+metapolybia_mean_dnds <- mean(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "metapolybia"])
+polybia_mean_dnds <- mean(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "polybia"])
+agelaia_mean_dnds <- mean(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "agelaia"])
+
+brachygastra_mean_dnds <- mean(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "brachygastra"])
+vespa_mean_dnds <- mean(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "vespa"])
+vespula_mean_dnds <- mean(dnds_all_distribution_df$dnds[dnds_all_distribution_df$species == "vespula"])
+
+# mischocyttarus_mean_dnds
+# polistes_mean_dnds
+# angiopolybia_mean_dnds
+# metapolybia_mean_dnds
+# polybia_mean_dnds
+# agelaia_mean_dnds
+# brachygastra_mean_dnds
+# vespa_mean_dnds
+# vespula_mean_dnds
+
+# jitter version
+ggplot(dnds_all_distribution_df, aes(x = species, y = dnds)) + 
+  geom_jitter() + 
+  geom_hline(yintercept = simple_median_dnds, linetype="dashed", color = "green")+ 
+  geom_hline(yintercept = complex_median_dnds, linetype="dashed", color = "red") + 
+  geom_hline(yintercept = global_median_dnds, linetype="dashed", color = "orange") + coord_flip() 
+```
+```{r dN/dS plot Complex polistines, species-level, eval = TRUE, echo = FALSE, include = TRUE}
+# inspired by Shell et al 2021 Figure 3b
+# here we take only the polistinae (removing vespa and vespula)
+
+# combine info about species, omega and social complexity level
+dnds_polistines_distribution_df <- rbind(data.frame(orthogroup = agelaia_results$orthogroup,
+                                                    dnds = agelaia_results$foreground_w,
+                                                    species = "agelaia",
+                                                    sociality = "complex"),
+                                         data.frame(orthogroup = angiopolybia_results$orthogroup,
+                                                    dnds = angiopolybia_results$foreground_w,
+                                                    species = "angiopolybia",
+                                                    sociality = "simple"),
+                                         data.frame(orthogroup = brachygastra_results$orthogroup,
+                                                    dnds = brachygastra_results$foreground_w,
+                                                    species = "brachygastra",
+                                                    sociality = "complex"),
+                                         data.frame(orthogroup = metapolybia_results$orthogroup,
+                                                    dnds = metapolybia_results$foreground_w,
+                                                    species = "metapolybia",
+                                                    sociality = "simple"),
+                                         data.frame(orthogroup = mischocyttarus_results$orthogroup,
+                                                    dnds = mischocyttarus_results$foreground_w,
+                                                    species = "mischocyttarus",
+                                                    sociality = "simple"),
+                                         data.frame(orthogroup = polistes_results$orthogroup,
+                                                    dnds = polistes_results$foreground_w,
+                                                    species = "polistes",
+                                                    sociality = "simple"),
+                                         data.frame(orthogroup = polybia_results$orthogroup,
+                                                    dnds = polybia_results$foreground_w,
+                                                    species = "polybia",
+                                                    sociality = "complex"))
+
+
+# any value over 2 (positive selection), becomes 2
+dnds_polistines_distribution_df$dnds[dnds_polistines_distribution_df$dnds > 2] <- 2
+
+
+# distribution plot per complexity level
+# ggplot(test, aes(x = dnds)) +
+#   geom_histogram(binwidth = 0.01)
+ggplot(dnds_polistines_distribution_df, aes(x = dnds, fill = factor(sociality))) +
+  geom_density(alpha = 0.5) + xlim(0, 1)
+
+# calculate global median dnds
+global_median_dnds <- median(dnds_polistines_distribution_df$dnds)
+
+# calculate median for simple
+simple_median_dnds <- median(dnds_polistines_distribution_df$dnds[dnds_polistines_distribution_df$sociality == "simple"])
+complex_median_dnds <- median(dnds_polistines_distribution_df$dnds[dnds_polistines_distribution_df$sociality == "complex"])
+
+
+# jitter version
+ggplot(dnds_polistines_distribution_df, aes(x = sociality, y = dnds)) + 
+  geom_jitter() + 
+  geom_hline(yintercept = simple_median_dnds, linetype="dashed", color = "green")+ 
+  geom_hline(yintercept = complex_median_dnds, linetype="dashed", color = "red") + 
+  geom_hline(yintercept = global_median_dnds, linetype="dashed", color = "orange") + coord_flip() 
+```
+```{r dN/dS plot Complex polistines, branch-level, eval = TRUE, echo = FALSE, include = TRUE}
+# inspired by Shell et al 2021 Figure 3b
+# here we compare dnds between two tests (null model, no positive selection; 
+# alternative model: positive selection on the whole branch model =2, nsites = 2)
+# complex Polistines: Brachy, ??
+# simple Polistines: Mischo and Polistes were on the 
+
+# combine info about species, omega and social complexity level
+dnds_polistines_branch_df <- 
+  rbind(data.frame(orthogroup = complexPolistines_results$orthogroup,
+                              dnds = complexPolistines_results$foreground_w,
+                              species = "complexPolistines",
+                              sociality = "complex"),
+                   data.frame(orthogroup = simplePolistines_results$orthogroup,
+                              dnds = simplePolistines_results$foreground_w,
+                              species = "simplePolistines",
+                              sociality = "simple"))
+
+
+# any value over 2 (positive selection), becomes 2
+dnds_polistines_branch_df$dnds[dnds_polistines_branch_df$dnds > 2] <- 2
+
+
+# distribution plot per complexity level
+# ggplot(test, aes(x = dnds)) +
+#   geom_histogram(binwidth = 0.01)
+ggplot(dnds_polistines_branch_df, aes(x = dnds, fill = factor(sociality))) +
+  geom_density(alpha = 0.5) + xlim(0, 1)
+
+# calculate global median dnds
+global_median_dnds <- median(dnds_polistines_branch_df$dnds)
+
+# calculate median for simple
+simple_median_dnds <- median(dnds_polistines_branch_df$dnds[dnds_polistines_branch_df$sociality == "simple"])
+
+complex_median_dnds <- median(dnds_polistines_branch_df$dnds[dnds_polistines_branch_df$sociality == "complex"])
+
+
+# jitter version
+ggplot(dnds_polistines_branch_df, aes(x = sociality, y = dnds)) + 
+  geom_jitter() + 
+  geom_hline(yintercept = simple_median_dnds, linetype="dashed", color = "green")+ 
+  geom_hline(yintercept = complex_median_dnds, linetype="dashed", color = "red") + 
+  geom_hline(yintercept = global_median_dnds, linetype="dashed", color = "orange") + coord_flip() 
+```
+
+
+```{r branch model with stories}
+# we ran paml with several branches at once being on the foreground of the branch model
+# In order of complexity: 1Mischo, 2Polistes, 3Angio, 4Meta, 5Polybia, 6Agelaia, 7Brachy, 8Vespa, 9Vespula
+complexVSall <- read.delim("~/Documents/local_myriad/complexVSall",
+                                 stringsAsFactors=FALSE)
+superorganismsVsRest <- read.delim("~/Documents/local_myriad/superorganismsVsRest",
+                                 stringsAsFactors=FALSE)
+SwarmVsIndependent <- read.delim("~/Documents/local_myriad/SwarmVsIndependent",
+                                 stringsAsFactors=FALSE)
+
+totipotentVsRest <- read.delim("~/Documents/local_myriad/totipotentVsRest",
+                                 stringsAsFactors=FALSE)
+
+complexVSall$chiTest <- as.numeric(complexVSall$chiTest)
+superorganismsVsRest$chiTest <- as.numeric(superorganismsVsRest$chiTest)
+SwarmVsIndependent$chiTest <- as.numeric(SwarmVsIndependent$chiTest)
+totipotentVsRest$chiTest <- as.numeric(totipotentVsRest$chiTest)
+# select orthogroups that are significant in the alternative model
+complexVSall <- complexVSall %>% filter(chiTest <= 0.05)
+superorganismsVsRest <- superorganismsVsRest %>% filter(chiTest <= 0.05)
+SwarmVsIndependent <- SwarmVsIndependent %>% filter(chiTest <= 0.05)
+totipotentVsRest <- totipotentVsRest %>% filter(chiTest <= 0.05)
+
+dnds_several_branch_df <- rbind(data.frame(orthogroup = complexVSall$orthogroup,
+                                           dnds = complexVSall$foreground_w,
+                                           category = "complex"),
+                                data.frame(orthogroup = superorganismsVsRest$orthogroup,
+                                           dnds = superorganismsVsRest$foreground_w,
+                                           category = "superorganism"),
+                                 data.frame(orthogroup = SwarmVsIndependent$orthogroup,
+                                           dnds = SwarmVsIndependent$foreground_w,
+                                           category = "Swarm"),
+                                data.frame(orthogroup = totipotentVsRest$orthogroup,
+                                           dnds = totipotentVsRest$foreground_w,
+                                           category = "simple"))
+                                
+                                
+# calculate means
+complex_mean <- 
+  mean(dnds_several_branch_df$dnds[dnds_several_branch_df$category == "complex"])
+superorganism_mean <- 
+  mean(dnds_several_branch_df$dnds[dnds_several_branch_df$category == "superorganism"])
+Swarm_mean <- 
+  mean(dnds_several_branch_df$dnds[dnds_several_branch_df$category == "Swarm"])
+totipotent_mean <- 
+  mean(dnds_several_branch_df$dnds[dnds_several_branch_df$category == "simple"])
+
+complex_mean
+superorganism_mean
+Swarm_mean
+totipotent_mean
+# # plot the spread of significant orthogroups under positive selection
+# ggplot(dnds_several_branch_df, aes(x = category, y = dnds)) + 
+#   geom_jitter() + 
+#   geom_point(aes(x= "complex", y = complex_mean), colour="orange") + 
+#   geom_point(aes(x= "superorganism", y = superorganism_mean), colour="red") + 
+#   geom_point(aes(x= "Swarm", y = Swarm_mean), colour="purple") +
+#   geom_point(aes(x= "Totipotent", y = Swarm_mean), colour="green") +
+#   coord_flip() 
+
+# test mean W = 356580, p-value = 0.1521
+wilcox.test(x = dnds_several_branch_df$dnds[dnds_several_branch_df$category == "complex"],
+            y = dnds_several_branch_df$dnds[dnds_several_branch_df$category == "superorganism"])
+
+# test mean W = 384912, p-value = 1.847e-07
+wilcox.test(x = dnds_several_branch_df$dnds[dnds_several_branch_df$category %in% c("complex","superorganism")],
+            y = dnds_several_branch_df$dnds[dnds_several_branch_df$category == "Swarm"])
+
+# test mean W = 307318, p-value < 2.2e-16
+wilcox.test(x = dnds_several_branch_df$dnds[dnds_several_branch_df$category %in% c("complex","superorganism")],
+            y = dnds_several_branch_df$dnds[dnds_several_branch_df$category == "simple"])
+
+# test mean W = 126972, p-value = 0.0001657
+wilcox.test(x = dnds_several_branch_df$dnds[dnds_several_branch_df$category %in% c("Swarm")],
+            y = dnds_several_branch_df$dnds[dnds_several_branch_df$category == "simple"])
+
+# W = 153511, p-value < 2.2e-16
+wilcox.test(x = dnds_several_branch_df$dnds[dnds_several_branch_df$category %in% c("superorganism")],
+            y = dnds_several_branch_df$dnds[dnds_several_branch_df$category == "simple"])
+
+# plot the spread of significant orthogroups under positive selection
+ggplot(dnds_several_branch_df,
+       aes(x = category, y = dnds, colour = category)) + 
+  scale_color_manual(values = c("orange", "red", "purple", "green")) +
+  geom_jitter(alpha = 0.15) + 
+  geom_point(aes(x= "complex", y = complex_mean), colour="orange", fill = "black", size = 4) + 
+  geom_point(aes(x= "superorganism", y = superorganism_mean), colour="red", size = 4) + 
+  geom_point(aes(x= "Swarm", y = Swarm_mean), colour="purple", size = 4) + 
+  geom_point(aes(x= "simple", y = Swarm_mean), colour="green", size = 4) + 
+  coord_flip() + theme_bw()
+dnds_several_branch_df$category <- factor(dnds_several_branch_df$category,
+                                          levels = c("simple",
+                                                     "complex",
+                                                     "superorganism",
+                                                     "Swarm"))
+# how many orthogroups per category?
+table(dnds_several_branch_df$category)
+
+   # Totipotent       complex superorganism         Swarm 
+   #        536           811           845           546 
+
+# how many orthogroups per category over dnds > 1
+dnds_several_branch_df %>% filter(dnds > 1)
+
+# only 2
+# OG0003694	1.01520	complex		
+# OG0003694	1.23802	superorganism
+
+
+ggplot(dnds_several_branch_df,
+       aes(x = category, y = dnds, colour = category)) + 
+  geom_boxplot() + geom_jitter(width = 0.2, alpha = 0.15)+ theme_bw()
+
+ggsave("dnds.pdf")
+
+# check genes about 0.8 (then blast them)
+# complex OG0003694
+# dnds_several_branch_df %>% filter(category == "complex") %>% 
+#   filter(dnds >= 0.8)
+# 
+# # simple OG0003049	OG0003184	OG0003536	OG0003833 OG0005082
+# dnds_several_branch_df %>% filter(category == "simple") %>% 
+#   filter(dnds >= 0.8)
+# 
+# # superorganism OG0002984	OG0003694
+# dnds_several_branch_df %>% filter(category == "superorganism") %>% 
+#   filter(dnds >= 0.8)
+# 
+# # Swarm OG0003491 OG0004867	 OG0005090
+# dnds_several_branch_df %>% filter(category == "Swarm") %>% 
+#   filter(dnds >= 0.8)
+```
+Each dot represents the dN/dS ratio for a given orthogroup, for which the alternative model (paml codeml's branch site model = 2, Nsites = 0) fitted the data best (ie ChiSquare Test p-value < 0.05). Four models were run on the nine species, with different foreground branches highlighted, namely: complex (Vespa, Vespula, Brachy, Polybia), superorganism (Vespa, Vespula, Brachy), swarm-founding (Angio, Agelaia, Polybia, Metapolybia, Brachy), totipotent (Misco, Polistes, Angio, Metapolybia). The mean of each category is superorganism = 0.1009398, complex = 0.1015024, swarm = 0.1461955, Totipotent = 0.1639218. Wilcoxon's tests show significant difference between swarm-founding and any other category (complex/superorgansm W = 384912, p-value = 1.847e-07; Totipotent W = 126972, p-value = 0.0001657). There is also a significant difference between totipotent and complex (W = 307318, p-value < 2.2e-16). There is no significant difference between complex and superorganism (W = 356580, p-value = 0.1521).
+
+In short, Swarm-founding clade has higher dN/dS than the rest (linked to colony founding behaviour?). Interestingly, we find that the species within the simplest organisation (Totipotent) have significantly higher dN/dS average than the complex species, which is the opposite of what Shell et al 2021 have found. Noticeably, there is only one orthogroup that has a dnds ratio higher than 1 (the textbook definition of positive selection): OG0003694 (dnds = 1.01520  in the branhc model with complex species as foreground) and (dnds = 1.23802 in the branch model with superorganism species as foreground) 
+
+
+```{r}
+dnds_everything_df <- rbind(data.frame(orthogroup = agelaia_results$foreground_w,
+           dnds       = agelaia_results$foreground_w,
+           dnds_mean = mean(agelaia_results$foreground_w),
+           species            = "agelaia",
+           sociality          = "complex",
+           superorganismality = "no",
+           totipotent         = "no",
+           founding           = "swarm",
+           social_rank        = 6),
+           data.frame(orthogroup = angiopolybia_results$orthogroup,
+           dnds               = angiopolybia_results$foreground_w,
+           dnds_mean = mean(angiopolybia_results$foreground_w),
+           species            = "angiopolybia",
+           sociality          = "simple",
+           superorganismality = "no",
+           totipotent         = "yes",
+           founding           = "swarm",
+           social_rank        = 3),
+           data.frame(orthogroup = brachygastra_results$orthogroup,
+           dnds               = brachygastra_results$foreground_w,
+           dnds_mean = mean(brachygastra_results$foreground_w),
+           species            = "brachygastra",
+           sociality          = "complex",
+           superorganismality = "yes",
+           totipotent         = "no",
+           founding           = "swarm",
+           social_rank        = 7),
+           data.frame(orthogroup = metapolybia_results$orthogroup,
+           dnds               = metapolybia_results$foreground_w,
+           dnds_mean = mean(metapolybia_results$foreground_w),
+           species            = "metapolybia",
+           sociality          = "simple",
+           superorganismality = "no",
+           totipotent         = "yes",
+           founding           = "swarm",
+           social_rank        = 4),
+           data.frame(orthogroup = mischocyttarus_results$orthogroup,
+           dnds               = mischocyttarus_results$foreground_w,
+           dnds_mean = mean(mischocyttarus_results$foreground_w),
+           species            = "mischocyttarus",
+           sociality          = "simple",
+           superorganismality = "no",
+           totipotent         = "yes",
+           founding           = "independent",
+           social_rank        = 1),
+           data.frame(orthogroup = polistes_results$orthogroup,
+           dnds               = polistes_results$foreground_w,
+           dnds_mean = mean(polistes_results$foreground_w),
+           species            = "polistes",
+           sociality          = "simple",
+           superorganismality = "no",
+           totipotent         = "yes",
+           founding           = "independent",
+           social_rank        = 2),
+           data.frame(orthogroup = polybia_results$orthogroup,
+           dnds               = polybia_results$foreground_w,
+           dnds_mean = mean(polybia_results$foreground_w),
+           species            = "polybia",
+           sociality          = "complex",
+           superorganismality = "no",
+           totipotent         = "no",
+           founding           = "swarm",
+           social_rank        = 5),
+           data.frame(orthogroup = vespa_results$orthogroup,
+           dnds               = vespa_results$foreground_w,
+           dnds_mean = mean(vespa_results$foreground_w),
+           species            = "vespa",
+           sociality          = "complex",
+           superorganismality = "yes",
+           totipotent         = "no",
+           founding           = "independent",
+           social_rank        = 8),
+           data.frame(orthogroup = vespula_results$orthogroup,
+           dnds               = vespula_results$foreground_w,
+           dnds_mean = mean(vespula_results$foreground_w),
+           species            = "vespula",
+           sociality          = "complex",
+           superorganismality = "yes",
+           totipotent         = "no",
+           founding           = "independent",
+           social_rank        = 9))
+
+# remove all values over 2 as 2
+dnds_everything_df$dnds[dnds_everything_df$dnds> 5] <- 5
+
+# update mean
+dnds_everything_df$dnds_mean[dnds_everything_df$species == "agelaia"] <- mean(dnds_everything_df$dnds[dnds_everything_df$species == "agelaia"])
+
+dnds_everything_df$dnds_mean[dnds_everything_df$species == "angiopolybia"] <- mean(dnds_everything_df$dnds[dnds_everything_df$species == "angiopolybia"])
+
+dnds_everything_df$dnds_mean[dnds_everything_df$species == "brachygastra"] <- mean(dnds_everything_df$dnds[dnds_everything_df$species == "brachygastra"])
+
+dnds_everything_df$dnds_mean[dnds_everything_df$species == "metapolybia"] <- mean(dnds_everything_df$dnds[dnds_everything_df$species == "metapolybia"])
+
+dnds_everything_df$dnds_mean[dnds_everything_df$species == "mischocyttarus"] <- mean(dnds_everything_df$dnds[dnds_everything_df$species == "mischocyttarus"])
+
+dnds_everything_df$dnds_mean[dnds_everything_df$species == "polistes"] <- mean(dnds_everything_df$dnds[dnds_everything_df$species == "polistes"])
+
+dnds_everything_df$dnds_mean[dnds_everything_df$species == "polybia"] <- mean(dnds_everything_df$dnds[dnds_everything_df$species == "polybia"])
+
+dnds_everything_df$dnds_mean[dnds_everything_df$species == "vespa"] <- mean(dnds_everything_df$dnds[dnds_everything_df$species == "vespa"])
+
+dnds_everything_df$dnds_mean[dnds_everything_df$species == "vespula"] <- mean(dnds_everything_df$dnds[dnds_everything_df$species == "vespula"])
+
+# plot of dnds on foreground, for significant orthogroups, for the following class
+# jitter version
+ggplot(dnds_everything_df,
+       aes(x = founding, y = dnds, colour =social_rank)) + 
+  geom_jitter() + coord_flip() 
+
+# check 
+plot(x = dnds_everything_df$dnds_mean,
+     y = dnds_everything_df$social_rank)
+
+
+# Complex vs the rest
+
+# Superorganismal vs the rest
+
+# Swarm vs independent
+
+# totipotent vs rest
+
+
+
+```
+
+```{r checking numbers}
+# number of orthogroups that experienced positive selection dn/ds > 1
+# branch-site chisquare test p value < 0.05
+# per story
+complexVSall %>% filter(chiTest < 0.05 & foreground_w >= 1) 
+
+superorganismsVsRest %>% filter(chiTest < 0.05 & foreground_w >= 1) %>% nrow()
+
+SwarmVsIndependent%>% filter(chiTest < 0.05 & foreground_w >= 1) %>% nrow()
+
+totipotentVsRest %>% filter(chiTest < 0.05 & foreground_w >= 1) %>% nrow()
+
+# OG0003362 OG0003491 OG0004867 OG0005164
+complexPolistines_results %>% filter(chiTest < 0.05 & foreground_w >= 1) %>% nrow()
+
+# OG0002957 OG0003204 OG0003159 OG0003184 OG0005376 OG0005104 
+simplePolistines_results %>% filter(chiTest < 0.05 & foreground_w >= 1) %>% nrow()
+# swarm vs independent
+
+# complex vs rest
+
+# simple vs rest
+
+# test mean W = 119615, p-value = 2.824e-11
+wilcox.test(x = simplePolistines_results$foreground_w[simplePolistines_results$chiTest < 0.05],
+            y = complexPolistines_results$foreground_w[complexPolistines_results$chiTest < 0.05])
+
+
+```
+
+```{r record versions of session, eval = TRUE, echo = FALSE, include = FALSE}
+# record versions of R and packages here
+sessionInfo()
+# R version 3.6.3 (2020-02-29)
+# Platform: x86_64-apple-darwin15.6.0 (64-bit)
+# Running under: macOS  10.16
+# 
+# Matrix products: default
+# LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+# 
+# locale:
+# [1] en_GB.UTF-8/en_GB.UTF-8/en_GB.UTF-8/C/en_GB.UTF-8/en_GB.UTF-8
+# 
+# attached base packages:
+# [1] stats     graphics  grDevices utils     datasets  methods   base     
+# 
+# other attached packages:
+# [1] forcats_0.5.1   stringr_1.4.0   dplyr_1.0.4     purrr_0.3.4     readr_1.4.0    
+# [6] tidyr_1.1.3     tibble_3.1.0    tidyverse_1.3.0 ggplot2_3.3.3  
+# 
+# loaded via a namespace (and not attached):
+#  [1] Rcpp_1.0.6       cellranger_1.1.0 pillar_1.5.0     compiler_3.6.3   dbplyr_2.1.0    
+#  [6] tools_3.6.3      lubridate_1.7.10 jsonlite_1.7.2   lifecycle_1.0.0  gtable_0.3.0    
+# [11] pkgconfig_2.0.3  rlang_0.4.10     reprex_1.0.0     cli_2.3.1        rstudioapi_0.13 
+# [16] DBI_1.1.1        haven_2.3.1      xfun_0.21        xml2_1.3.2       withr_2.4.1     
+# [21] httr_1.4.2       knitr_1.31       fs_1.5.0         generics_0.1.0   vctrs_0.3.6     
+# [26] hms_1.0.0        grid_3.6.3       tidyselect_1.1.0 glue_1.4.2       R6_2.5.0        
+# [31] fansi_0.4.2      readxl_1.3.1     modelr_0.1.8     magrittr_2.0.1   scales_1.1.1    
+# [36] backports_1.2.1  ellipsis_0.3.1   rvest_0.3.6      assertthat_0.2.1 colorspace_2.0-0
+# [41] utf8_1.1.4       stringi_1.5.3    munsell_0.5.0    broom_0.7.5      crayon_1.4.1  
+```

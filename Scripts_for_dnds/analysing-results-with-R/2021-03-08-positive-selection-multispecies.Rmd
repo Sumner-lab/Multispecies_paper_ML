@@ -1,0 +1,1616 @@
+---
+title: "Positive selection in multispecies projects"
+author: "Emeline Favreau"
+date: "08/03/2021"
+output: html_document
+---
+
+Copyright 2021 Emeline Favreau, University College London.
+
+---
+##### Objective of analysis
+
+*Branch model*
+We obtained the dN/dS value for 1,971 orthogroups shared between 9 species under the null model of all branches being equal (no variation in dN/dS ratios between branches). We then obtained dN/dS values under the alternative model, for which one species is on the foreground branch and all other species on the background (this allows for 2 dN/dS ratios). Because our current analysis is exploratory, this alternative model is applied nine times, one for each species on the foreground branch.
+
+To detect the variation of dn/ds ratio across lineages, we apply log-likelihood tests to compare which model (null or alternative) fits the data best. Then we assess the significance of the result by a test statistics (by calculating a chi-square critical value and a p value).
+
+*Branch-site model*
+Using single-copy orthologous genes for the nine species (obtained from OrthoFinder analysis of Trinity output), we aligned nucleotide sequences for each of the 1,971 orthogroups, using PRANK. For each species and for each orthogroup, we then calculated dn/ds ratios (omega) in a null hypothesis model in PAML codeml (omega fixed at 1, model = 2, NSSites = 2, tree file with one species branch as foreground) and in an alternative hypothesis model (omega not fixed, all other parameters set as the null model). We assessed log likelihoods using chi-square test and reported the adjusted p-values using R.
+
+```{r background info, eval = FALSE, echo = FALSE, include = FALSE}
+# Further reading: http://www.cbs.dtu.dk/dtucourse/cookbooks/gorm/27615/lrt.php
+# When evaluating which gene experienced positive selection in relation to its orthogenes in different species, it is important to include the following values:
+# 
+#     - w_M0: dn/ds of this orthogroup in the null model (all branches equal)
+#     - np_M0: number of parameters in the null model 
+#     - lnL_M0: log-likelihood that the null model fits the data
+#     - np_M2: number of parameters in the alternative model
+#     - lnL_M2 log-likelihood that the alternative model fits the data
+#     - background_w: background dn/ds in the alternative model
+#     - foreground_w: foreground dn/ds in the alternative model
+#     - kappaM2: transition/transversion rate ratio
+#     - TestStatistic: D value, twice the difference in log-likelihoods is computed
+#     - DF: degrees of freedom for chi test
+#     - chiTest: the p value from the chi test, associated with significance of log-likelihood test. P-values under 0.05 show significant best fit of the data by alternative model.
+#  
+# Thus, orthogenes with a foreground_w above 1 and with a p-value lower than 0.05 should be treated as having experienced positive/relaxed selection.
+```
+
+##### Analysis steps:
+- Obtaining data
+- make a phylogenetic tree
+- Branch model (Aim 1): calculate number of genes under positive selection
+- Branch model (Aim 2): adjust for multiple comparison and compare
+- Branch-site model (Aim 3): calculate number of genes under positive selection
+- Branch-site model (Aim 4): adjust for multiple comparison and compare
+
+
+
+```{r load all the libraries, eval = TRUE, echo = FALSE, include = FALSE}
+# get libraries
+basic_libraries <- c("ggplot2",
+                     "tidyverse",
+                     "phytools")
+
+for (lib in basic_libraries) {
+        if (require(package = lib, character.only = TRUE)) {
+                print("Successful")
+        } else {
+                print("Installing")
+                install.packages(lib)
+                library(lib, character.only = TRUE )
+        }
+}
+
+library("treeio")
+library("ggtree")
+```
+
+
+```{r import branch model data, eval = TRUE, echo = FALSE, include = FALSE}
+
+# file obtained by codeml, containing dnds data for one as foreground branch in model 2
+# columns: w_M0 np_M0 lnL_M0 np_M2 lnL_M2 background_w foreground_w kappaM1 TestStatistic DF chiTest
+# rows: orthogroups
+
+# Agelaia as foreground
+agelaia_results <- read.csv("result/branch-models/omega_results/agelaia",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# angiopolybia as foreground
+angiopolybia_results <- read.csv("result/branch-models/omega_results/angiopolybia",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# brachygastra as foreground
+brachygastra_results <- read.csv("result/branch-models/omega_results/brachygastra",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# metapolybia as foreground
+metapolybia_results <- read.csv("result/branch-models/omega_results/metapolybia",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+ 
+# mischocyttarus as foreground
+mischocyttarus_results <- read.csv("result/branch-models/omega_results/mischocyttarus",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# polistes as foreground
+polistes_results <- read.csv("result/branch-models/omega_results/polistes",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+ 
+# polybia as foreground
+polybia_results <- read.csv("result/branch-models/omega_results/polybia",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# vespa as foreground
+vespa_results <- read.csv("result/branch-models/omega_results/vespa",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+ 
+# vespula as foreground 
+vespula_results <- read.csv("result/branch-models/omega_results/vespula",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# vespula and vespa as foreground 
+vespa_and_vespula_results <- read.csv("result/branch-models/omega_results/vespa-and-vespula",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+```
+
+```{r import branch-site model data, eval = TRUE, echo = FALSE, include = FALSE}
+
+# file obtained by codeml, containing dnds data for one species as foreground branch 
+# branch-site estimates dn/ds ratio for each site in a branch, not an average on the branch
+# columns: orthogroup np_M0 lnL_M0 np_M1 lnL_M2 chiTestpvalue
+# rows: orthogroups
+
+# Agelaia as foreground (BS = branch-site)
+agelaia_resultsBS <- read.csv("result/branch-site-models/omega_results/agelaia-tidy",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# angiopolybia as foreground
+angiopolybia_resultsBS <- read.csv("result/branch-site-models/omega_results/angiopolybia-tidy",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# brachygastra as foreground
+brachygastra_resultsBS <- read.csv("result/branch-site-models/omega_results/brachygastra-tidy",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# metapolybia as foreground
+metapolybia_resultsBS <- read.csv("result/branch-site-models/omega_results/metapolybia-tidy",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+ 
+# mischocyttarus as foreground
+mischocyttarus_resultsBS <- read.csv("result/branch-site-models/omega_results/mischocyttarus-tidy",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# polistes as foreground
+polistes_resultsBS <- read.csv("result/branch-site-models/omega_results/polistes-tidy",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+ 
+# polybia as foreground
+polybia_resultsBS <- read.csv("result/branch-site-models/omega_results/polybia-tidy",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# vespa as foreground
+vespa_resultsBS <- read.csv("result/branch-site-models/omega_results/vespa-tidy",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+ 
+# vespula as foreground 
+vespula_resultsBS <- read.csv("result/branch-site-models/omega_results/vespula-tidy",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# vespula and vespa as foreground 
+vespa_and_vespula_resultsBS <- read.csv("result/branch-site-models/omega_results/vespa-and-vespula-tidy",
+                          header = TRUE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+```
+
+```{r import site data, eval = TRUE, echo = FALSE, include = FALSE}
+
+# file obtained from codeml and R
+# for each species, list of orthogroups under significant pos selection (branch-site model) including number of sites under selection in that ortholog
+# columns: orthogroup sites
+# rows: orthogroups
+
+# Agelaia 
+agelaia_sig_loc_df <- read.csv("result/branch-site-models/significant-orthogroups/agelaia-orthogroup-num-result",
+                          header = FALSE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# angiopolybia
+angiopolybia_sig_loc_df <- read.csv("result/branch-site-models/significant-orthogroups/angiopolybia-orthogroup-num-result",
+                          header = FALSE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# brachygastra
+brachygastra_sig_loc_df <- read.csv("result/branch-site-models/significant-orthogroups/brachygastra-orthogroup-num-result",
+                          header = FALSE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# metapolybia
+metapolybia_sig_loc_df <- read.csv("result/branch-site-models/significant-orthogroups/metapolybia-orthogroup-num-result",
+                          header = FALSE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+ 
+# mischocyttarus
+mischocyttarus_sig_loc_df <- read.csv("result/branch-site-models/significant-orthogroups/mischocyttarus-orthogroup-num-result",
+                          header = FALSE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# polistes 
+polistes_sig_loc_df <- read.csv("result/branch-site-models/significant-orthogroups/polistes-orthogroup-num-result",
+                          header = FALSE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+ 
+# polybia 
+polybia_sig_loc_df <- read.csv("result/branch-site-models/significant-orthogroups/polybia-orthogroup-num-result",
+                          header = FALSE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# vespa 
+vespa_sig_loc_df <- read.csv("result/branch-site-models/significant-orthogroups/vespa-orthogroup-num-result",
+                          header = FALSE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+ 
+# vespula
+vespula_sig_loc_df <- read.csv("result/branch-site-models/significant-orthogroups/vespula-orthogroup-num-result",
+                          header = FALSE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+
+# vespula and vespa
+vespids_sig_loc_df <- read.csv("result/branch-site-models/significant-orthogroups/vespa-and-vespula-orthogroup-num-result",
+                          header = FALSE,
+                          sep = "\t", 
+                          stringsAsFactors = FALSE)
+```
+
+
+
+```{r make a tree}
+# made by OrthoFinder using single orthologous data
+ortho_tree <- read.newick(file = "input/orthogroups/SpeciesTree_rooted.txt")
+
+# tidy ttp label
+ortho_tree$tip.label <- c("Vespa crabro",
+                                  "Vespula vulgaris",
+                                  "Mischocyttarus basimacula",
+                                  "Polistes canadensis",
+                                  "Polybia quadracincta",
+                                  "Metapolybia cingulata",
+                                  "Brachygastra mellifica",
+                                  "Agelaia cajannensis",      
+                                  "Angiopolybia pallens")     
+
+
+                 
+                 
+ggtree(ortho_tree,
+       branch.length = "none") +
+  geom_tiplab(size = 3, aes(fontface = 3)) + xlim(NA, 15)
+```
+
+#### Branch model
+
+##### Aim 1: Calculate number of genes under positive selection 
+
+```{r explore data Branch model, eval = TRUE, echo = FALSE, include = TRUE}
+species_vec <- c("agelaia",
+                 "angiopolybia",
+                 "brachygastra",
+                 "metapolybia",
+                 "mischocyttarus",
+                 "polistes",
+                 "polybia", 
+                 "vespa", 
+                 "vespula",
+                 "vespa_and_vespula")
+
+
+# list of result
+results_list <- list(agelaia_results,
+                     angiopolybia_results,
+                     brachygastra_results,
+                     metapolybia_results,
+                     mischocyttarus_results,
+                     polistes_results,
+                     polybia_results,
+                     vespa_results,
+                     vespula_results,
+                     vespa_and_vespula_results)
+
+
+# 
+
+
+# codeml infinity (no synonymous substitutions) is 999
+# probably from alignment issues. I shall filter them out
+for(i in 1:length(species_vec)){
+        results_list[[i]]  <- results_list[[i]] %>% filter(foreground_w != 999)
+}
+
+# division by zero is invalid, so removing those
+# probably from alignment issues. I shall filter them out
+for(i in 1:length(species_vec)){
+        results_list[[i]]  <- results_list[[i]] %>% filter(chiTest != "invalid")
+}
+
+
+# # number of orthgroups that are always < 1 
+# for(i in 1:9){
+#         print(species_vec[i])
+#         print(sum(results_list[[i]]$foreground_w > 1))
+# }
+
+
+# keep indo orthogroups and foreground_w and chitest p value in one df
+important_result_list <- lapply(results_list,
+                                function(x) x %>% select(orthogroup,
+                                                        foreground_w,
+                                                        chiTest))
+# update names of columns
+for(i in 1:length(species_vec)){
+  names(important_result_list[[i]]) <- c(names(important_result_list[[i]])[1],
+                                       paste(species_vec[i],
+                                           names(important_result_list[[i]])[2],
+                                           sep = "_"),
+                                       paste(species_vec[i],
+                                           names(important_result_list[[i]])[3],
+                                           sep = "_"))
+  
+}
+
+# make into a df
+result_df <- Reduce(function(x, y) merge (x, y, by = "orthogroup"),
+                    important_result_list)
+
+# change class for p value
+result_df$agelaia_chiTest <- as.numeric(result_df$agelaia_chiTest)
+result_df$angiopolybia_chiTest <- as.numeric(result_df$angiopolybia_chiTest)
+result_df$brachygastra_chiTest <- as.numeric(result_df$brachygastra_chiTest)
+result_df$metapolybia_chiTest <- as.numeric(result_df$metapolybia_chiTest)
+result_df$mischocyttarus_chiTest <- as.numeric(result_df$mischocyttarus_chiTest)
+result_df$polistes_chiTest <- as.numeric(result_df$polistes_chiTest)
+result_df$polybia_chiTest <- as.numeric(result_df$polybia_chiTest)
+result_df$vespa_chiTest <- as.numeric(result_df$vespa_chiTest)
+result_df$vespula_chiTest <- as.numeric(result_df$vespula_chiTest)
+result_df$vespa_and_vespula_chiTest <- as.numeric(result_df$vespa_and_vespula_chiTest)
+
+# description per species
+# number of genes under positive selection (omega > 1, p < 0.05)
+
+positive_orthogene_list <- list()
+
+positive_orthogene_list[[1]] <- result_df$orthogroup[result_df$agelaia_foreground_w > 1 &
+                                                       as.numeric(result_df$agelaia_chiTest) < 0.05]
+
+positive_orthogene_list[[2]] <- result_df$orthogroup[result_df$angiopolybia_foreground_w > 1 &
+                                                       result_df$angiopolybia_chiTest < 0.05]
+
+positive_orthogene_list[[3]] <-result_df$orthogroup[result_df$brachygastra_foreground_w > 1 &
+                                                      result_df$brachygastra_chiTest < 0.05]
+
+positive_orthogene_list[[4]] <- result_df$orthogroup[result_df$metapolybia_foreground_w > 1 &
+                                                       result_df$metapolybia_chiTest < 0.05]
+ 
+positive_orthogene_list[[5]] <- result_df$orthogroup[result_df$mischocyttarus_foreground_w > 1 &
+                                                       result_df$mischocyttarus_chiTest < 0.05]
+
+positive_orthogene_list[[6]] <- result_df$orthogroup[result_df$polistes_foreground_w > 1 &
+                                                       result_df$polistes_chiTest < 0.05]
+
+positive_orthogene_list[[7]] <- result_df$orthogroup[result_df$polybia_foreground_w > 1 &
+                                                       result_df$polybia_chiTest < 0.05]
+
+positive_orthogene_list[[8]] <- result_df$orthogroup[result_df$vespa_foreground_w > 1 &
+                                                       result_df$vespa_chiTest < 0.05]
+
+positive_orthogene_list[[9]] <- result_df$orthogroup[result_df$vespula_foreground_w > 1 &
+                                                       result_df$vespula_chiTest < 0.05]
+
+positive_orthogene_list[[10]] <- result_df$orthogroup[result_df$vespa_and_vespula_foreground_w > 1 &
+                                                        result_df$vespa_and_vespula_chiTest < 0.05]
+
+
+names(positive_orthogene_list) <- species_vec
+
+positive_orthogen_df <- as.data.frame(cbind(species_vec,
+      c(length(positive_orthogene_list[[1]]),
+  length(positive_orthogene_list[[2]]),
+  length(positive_orthogene_list[[3]]),
+  length(positive_orthogene_list[[4]]),
+  length(positive_orthogene_list[[5]]),
+  length(positive_orthogene_list[[6]]),
+  length(positive_orthogene_list[[7]]),
+  length(positive_orthogene_list[[8]]),
+  length(positive_orthogene_list[[9]]),
+  length(positive_orthogene_list[[10]]))),
+  stringsAsFactors = FALSE)
+
+colnames(positive_orthogen_df) <- c("species",
+                                    "genes under positive selection")
+
+
+positive_orthogen_df
+```
+
+In the branch model, there are a handful for genes for which dN/dS is significantly higher than 1 (not adjusted for multiple comparison).
+
+Here is the list, to be compared with DEGs.
+
+```{r list of orthogenes under pos selection branch model, eval = TRUE, echo = FALSE, include = TRUE}
+positive_orthogene_list
+
+# any common orthogene?
+orthogroups_occurence <- unlist(positive_orthogene_list)
+#length(unlist(orthogroups_occurence))
+#length(unique(orthogroups_occurence))
+
+# some orthogroups are found twice
+common_orthogroups <- names(table(orthogroups_occurence)[table(orthogroups_occurence) == 2])
+#"OG0003150" "OG0003204" "OG0003362" "OG0003491" "OG0004598" "OG0004867"
+# common_orthogroups 
+
+# save list of orthgroups per species
+for(i in 1:length(species_vec)){
+  file_name <- paste("result/significant-orthogroups/positive-orthogene-list",
+                     species_vec[i],
+                     sep = "-")
+  write.table(x = positive_orthogene_list[[i]],
+            file = file_name,
+            row.names = FALSE,
+            col.names = FALSE,
+            quote = FALSE)
+}
+```
+
+
+
+##### Aim 2: Adjust for multiple comparison and compare (Branch model)
+
+```{r padjust for multiple testing (Branch model), eval = TRUE, echo = FALSE, include = TRUE}
+
+# Benjamin and Hochberg adjustment
+result_df$agelaia_padj <- p.adjust(p = result_df$agelaia_chiTest,
+                               method = "BH")
+
+result_df$angiopolybia_padj <- p.adjust(p = result_df$angiopolybia_chiTest,
+                               method = "BH")
+
+result_df$brachygastra_padj <- p.adjust(p = result_df$brachygastra_chiTest,
+                               method = "BH")
+
+result_df$metapolybia_padj <- p.adjust(p = result_df$metapolybia_chiTest,
+                               method = "BH")
+
+result_df$mischocyttarus_padj <- p.adjust(p = result_df$mischocyttarus_chiTest,
+                               method = "BH")
+
+result_df$polistes_padj <- p.adjust(p = result_df$polistes_chiTest,
+                               method = "BH")
+
+result_df$polybia_padj <- p.adjust(p = result_df$polybia_chiTest,
+                               method = "BH")
+
+result_df$vespa_padj <- p.adjust(p = result_df$vespa_chiTest,
+                               method = "BH")
+
+result_df$vespula_padj <- p.adjust(p = result_df$vespula_chiTest,
+                               method = "BH")
+
+result_df$vespa_and_vespula_padj <- p.adjust(p = result_df$vespa_and_vespula_chiTest,
+                               method = "BH")
+
+
+# remove rows for which
+
+adj_positive_orthogene_list <- list()
+
+adj_positive_orthogene_list[[1]] <- result_df$orthogroup[result_df$agelaia_foreground_w > 1 & result_df$agelaia_padj < 0.05]
+
+adj_positive_orthogene_list[[2]] <- result_df$orthogroup[result_df$angiopolybia_foreground_w > 1 & result_df$angiopolybia_padj < 0.05]
+
+adj_positive_orthogene_list[[3]] <-result_df$orthogroup[result_df$brachygastra_foreground_w > 1 & result_df$brachygastra_padj < 0.05]
+
+adj_positive_orthogene_list[[4]] <- result_df$orthogroup[result_df$metapolybia_foreground_w > 1 & result_df$metapolybia_padj < 0.05]
+ 
+adj_positive_orthogene_list[[5]] <- result_df$orthogroup[result_df$mischocyttarus_foreground_w > 1 & result_df$mischocyttarus_padj < 0.05]
+
+adj_positive_orthogene_list[[6]] <- result_df$orthogroup[result_df$polistes_foreground_w > 1 & result_df$polistes_padj < 0.05]
+
+adj_positive_orthogene_list[[7]] <- result_df$orthogroup[result_df$polybia_foreground_w > 1 & result_df$polybia_padj < 0.05]
+
+adj_positive_orthogene_list[[8]] <- result_df$orthogroup[result_df$vespa_foreground_w > 1 & result_df$vespa_padj < 0.05]
+
+adj_positive_orthogene_list[[9]] <- result_df$orthogroup[result_df$vespula_foreground_w > 1 & result_df$vespula_padj < 0.05]
+
+adj_positive_orthogene_list[[10]] <- result_df$orthogroup[result_df$vespa_and_vespula_foreground_w > 1 & result_df$vespa_and_vespula_padj < 0.05]
+
+
+names(adj_positive_orthogene_list) <- species_vec
+
+adj_positive_orthogen_df <- as.data.frame(cbind(species_vec,
+      c(length(adj_positive_orthogene_list[[1]]),
+  length(adj_positive_orthogene_list[[2]]),
+  length(adj_positive_orthogene_list[[3]]),
+  length(adj_positive_orthogene_list[[4]]),
+  length(adj_positive_orthogene_list[[5]]),
+  length(adj_positive_orthogene_list[[6]]),
+  length(adj_positive_orthogene_list[[7]]),
+  length(adj_positive_orthogene_list[[8]]),
+  length(adj_positive_orthogene_list[[9]]),
+  length(adj_positive_orthogene_list[[10]]))),
+  stringsAsFactors = FALSE)
+
+colnames(adj_positive_orthogen_df) <- c("species", "Branch model genes under positive selection (adj)")
+
+
+adj_positive_orthogen_df
+```
+
+In the branch model there are a handful for genes for which dN/dS is significantly higher than 1, when adjusted for multiple comparison (Benjamini and Hochberg).
+
+Here is the list, to be compared with DEGs.
+
+```{r list of orthogenes under pos selection adj, eval = TRUE, echo = FALSE, include = TRUE}
+adj_positive_orthogene_list
+
+# any common orthogene?
+adj_orthogroups_occurence <- unlist(adj_positive_orthogene_list)
+#length(unlist(adj_orthogroups_occurence))
+#length(unique(adj_orthogroups_occurence))
+
+# one orthogroup is found twice
+adj_common_orthogroups <- names(table(adj_orthogroups_occurence)[table(adj_orthogroups_occurence) == 2])
+#"OG0004867"
+
+# save list of orthgroups per species
+for(i in 1:length(species_vec)){
+  file_name <- paste("result/branch-models/significant-orthogroups/adj-positive-orthogene-list",
+                     species_vec[i],
+                     sep = "-")
+  write.table(x = adj_positive_orthogene_list[[i]],
+            file = file_name,
+            row.names = FALSE,
+            col.names = FALSE,
+            quote = FALSE)
+}
+```
+
+Conclusion for the branch model
+
+These results (very few genes), are expected when using the branch model, which tests for a significant variation in omega (dn/ds ratio) averaged on the branch. This is an extreme behaviour that is not expected from the vast majority of positive selection studies.
+
+These few orthogroups that have experienced positive/relaxed selection, are they part of DEGs?
+
+I think these results need to be used carefully, because the focus was the species branch. This means that while 2 _Vespula_ genes experienced positive selection, their orthologous counterparts in the 8 other species did not experienced positive selection (including the other superorganismal _Vespa_).
+
+Allowing _Vespa_ and _Vespula_ to vary dnds shows that more genes have experienced positive/relaxed selection than the others. This is consistent with current findings (Shell et al 2021) suggesting that eusocial species have more genes under positive selection than species with less complex social organisation.
+
+
+
+
+#### Branch-site model
+
+##### Aim 3: Calculate number of genes under positive selection 
+
+```{r explore data Branch-site model, eval = TRUE, echo = FALSE, include = TRUE}
+
+
+# list of result
+results_listBS <- list(agelaia_resultsBS,
+                     angiopolybia_resultsBS,
+                     brachygastra_resultsBS,
+                     metapolybia_resultsBS,
+                     mischocyttarus_resultsBS,
+                     polistes_resultsBS,
+                     polybia_resultsBS,
+                     vespa_resultsBS,
+                     vespula_resultsBS,
+                     vespa_and_vespula_resultsBS)
+
+
+# p value is invalid when both likelihood are very close
+#filter them out
+for(i in 1:length(species_vec)){
+        results_listBS[[i]]  <- results_listBS[[i]] %>% 
+          filter(chiTestpvalue != "invalid")
+}
+
+
+
+# keep orthogroups and chitest p value in one df
+important_result_listBS <- lapply(results_listBS,
+                                function(x) x %>% select(orthogroup,
+                                                        chiTestpvalue))
+# update names of columns with species
+for(i in 1:length(species_vec)){
+  names(important_result_listBS[[i]]) <- c(names(important_result_listBS[[i]])[1],
+                                       paste(species_vec[i],
+                                           names(important_result_listBS[[i]])[2],
+                                           sep = "_"))
+  
+}
+
+# make into a df
+result_dfBS <- Reduce(function(x, y) merge (x, y, all = TRUE),
+                    important_result_listBS)
+
+# change class for p value
+result_dfBS$agelaia_chiTestpvalue           <- as.numeric(result_dfBS$agelaia_chiTestpvalue)
+
+result_dfBS$angiopolybia_chiTestpvalue      <- as.numeric(result_dfBS$angiopolybia_chiTestpvalue)
+
+result_dfBS$brachygastra_chiTestpvalue      <- as.numeric(result_dfBS$brachygastra_chiTestpvalue)
+
+result_dfBS$metapolybia_chiTestpvalue       <- as.numeric(result_dfBS$metapolybia_chiTestpvalue)
+
+result_dfBS$mischocyttarus_chiTestpvalue    <- as.numeric(result_dfBS$mischocyttarus_chiTestpvalue)
+
+result_dfBS$polistes_chiTestpvalue          <- as.numeric(result_dfBS$polistes_chiTestpvalue)
+
+result_dfBS$polybia_chiTestpvalue           <- as.numeric(result_dfBS$polybia_chiTestpvalue)
+
+result_dfBS$vespa_chiTestpvalue             <- as.numeric(result_dfBS$vespa_chiTestpvalue)
+
+result_dfBS$vespula_chiTestpvalue           <- as.numeric(result_dfBS$vespula_chiTestpvalue)
+
+result_dfBS$vespa_and_vespula_chiTestpvalue <- as.numeric(result_dfBS$vespa_and_vespula_chiTestpvalue)
+
+# description per species
+# number of genes under positive selection (omega > 1, p < 0.05)
+
+positive_orthogene_listBS <- list()
+
+positive_orthogene_listBS[[1]] <- unlist(result_dfBS %>% 
+                                               filter(agelaia_chiTestpvalue < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)
+
+positive_orthogene_listBS[[2]] <- unlist(result_dfBS %>% 
+                                               filter(angiopolybia_chiTestpvalue < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE) 
+
+positive_orthogene_listBS[[3]] <- unlist(result_dfBS %>% 
+                                               filter(brachygastra_chiTestpvalue < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)
+
+positive_orthogene_listBS[[4]] <- unlist(result_dfBS %>% 
+                                               filter(metapolybia_chiTestpvalue < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE) 
+ 
+positive_orthogene_listBS[[5]] <- unlist(result_dfBS %>% 
+                                               filter(mischocyttarus_chiTestpvalue < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)  
+
+positive_orthogene_listBS[[6]] <- unlist(result_dfBS %>% 
+                                               filter(polistes_chiTestpvalue < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)  
+
+positive_orthogene_listBS[[7]] <- unlist(result_dfBS %>% 
+                                               filter(polybia_chiTestpvalue < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)  
+
+positive_orthogene_listBS[[8]] <- unlist(result_dfBS %>% 
+                                               filter(vespa_chiTestpvalue < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE) 
+
+positive_orthogene_listBS[[9]] <- unlist(result_dfBS %>% 
+                                               filter(vespula_chiTestpvalue < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE) 
+
+positive_orthogene_listBS[[10]] <- unlist(result_dfBS %>% 
+                                               filter(vespa_and_vespula_chiTestpvalue < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)  
+
+
+names(positive_orthogene_listBS) <- species_vec
+
+positive_orthogen_dfBS <- as.data.frame(cbind(species_vec,
+      c(length(positive_orthogene_listBS[[1]]),
+  length(positive_orthogene_listBS[[2]]),
+  length(positive_orthogene_listBS[[3]]),
+  length(positive_orthogene_listBS[[4]]),
+  length(positive_orthogene_listBS[[5]]),
+  length(positive_orthogene_listBS[[6]]),
+  length(positive_orthogene_listBS[[7]]),
+  length(positive_orthogene_listBS[[8]]),
+  length(positive_orthogene_listBS[[9]]),
+  length(positive_orthogene_listBS[[10]]))),
+  stringsAsFactors = FALSE)
+
+colnames(positive_orthogen_dfBS) <- c("species",
+                                    "Branch site model genes under positive selection")
+
+
+positive_orthogen_dfBS
+
+# average  108.8
+# mean(as.numeric(positive_orthogen_dfBS$"Branch site model genes under positive selection"))
+```
+
+In the branch site model, there is an average of 109 orthgroups per species for which dN/dS is significantly higher than 1 (not adjusted for multiple comparison).
+
+The list is saved on myriad, to be compared with DEGs.
+
+```{r list of orthogenes under pos selection branch model, eval = TRUE, echo = FALSE, include = TRUE}
+#positive_orthogene_listBS
+
+# any common orthogene? 
+orthogroups_occurenceBS <- unlist(positive_orthogene_listBS)
+#length(unlist(orthogroups_occurenceBS))
+#length(unique(orthogroups_occurenceBS))
+
+# some orthogroups are found twice
+common_orthogroupsBS <- names(table(orthogroups_occurenceBS)[table(orthogroups_occurenceBS) == 2])
+#"OG0003150" "OG0003204" "OG0003362" "OG0003491" "OG0004598" "OG0004867"
+# common_orthogroups 
+
+# save list of orthgroups per species
+for(i in 1:length(species_vec)){
+  file_name <- paste("result/branch-site-models/significant-orthogroups/positive-orthogene-list",
+                     species_vec[i],
+                     sep = "-")
+  write.table(x = positive_orthogene_list[[i]],
+            file = file_name,
+            row.names = FALSE,
+            col.names = FALSE,
+            quote = FALSE)
+}
+```
+
+
+
+##### Aim 4: Adjust for multiple comparison and compare (Branch-site model)
+
+```{r padjust for multiple testing (Branch-site model), eval = TRUE, echo = FALSE, include = TRUE}
+
+# Benjamin and Hochberg adjustment
+result_dfBS$agelaia_padj <- p.adjust(p = result_dfBS$agelaia_chiTest,
+                               method = "BH")
+
+result_dfBS$angiopolybia_padj <- p.adjust(p = result_dfBS$angiopolybia_chiTest,
+                               method = "BH")
+
+result_dfBS$brachygastra_padj <- p.adjust(p = result_dfBS$brachygastra_chiTest,
+                               method = "BH")
+
+result_dfBS$metapolybia_padj <- p.adjust(p = result_dfBS$metapolybia_chiTest,
+                               method = "BH")
+
+result_dfBS$mischocyttarus_padj <- p.adjust(p = result_dfBS$mischocyttarus_chiTest,
+                               method = "BH")
+
+result_dfBS$polistes_padj <- p.adjust(p = result_dfBS$polistes_chiTest,
+                               method = "BH")
+
+result_dfBS$polybia_padj <- p.adjust(p = result_dfBS$polybia_chiTest,
+                               method = "BH")
+
+result_dfBS$vespa_padj <- p.adjust(p = result_dfBS$vespa_chiTest,
+                               method = "BH")
+
+result_dfBS$vespula_padj <- p.adjust(p = result_dfBS$vespula_chiTest,
+                               method = "BH")
+
+result_dfBS$vespa_and_vespula_padj <- p.adjust(p = result_dfBS$vespa_and_vespula_chiTest,
+                               method = "BH")
+
+
+# subset for lower than 0.05
+unlist(result_dfBS %>% filter(agelaia_padj < 0.05) %>% select(orthogroup), use.names = FALSE)
+adj_positive_orthogene_listBS <- list()
+
+adj_positive_orthogene_listBS[[1]] <- unlist(result_dfBS %>% 
+                                               filter(agelaia_padj < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)
+
+adj_positive_orthogene_listBS[[2]] <- unlist(result_dfBS %>% 
+                                               filter(angiopolybia_padj < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)
+
+
+adj_positive_orthogene_listBS[[3]] <- unlist(result_dfBS %>% 
+                                               filter(brachygastra_padj < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)
+
+adj_positive_orthogene_listBS[[4]] <- unlist(result_dfBS %>% 
+                                               filter(metapolybia_padj < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)
+ 
+adj_positive_orthogene_listBS[[5]] <- unlist(result_dfBS %>% 
+                                               filter(mischocyttarus_padj < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)
+
+adj_positive_orthogene_listBS[[6]] <- unlist(result_dfBS %>% 
+                                               filter(polistes_padj < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)
+
+adj_positive_orthogene_listBS[[7]] <- unlist(result_dfBS %>% 
+                                               filter(polybia_padj < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)
+
+adj_positive_orthogene_listBS[[8]] <- unlist(result_dfBS %>% 
+                                               filter(vespa_padj < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)
+
+adj_positive_orthogene_listBS[[9]] <- unlist(result_dfBS %>% 
+                                               filter(vespula_padj < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)
+
+adj_positive_orthogene_listBS[[10]] <- unlist(result_dfBS %>% 
+                                               filter(vespa_and_vespula_padj < 0.05) %>%
+                                               select(orthogroup),
+                                             use.names = FALSE)
+
+# give names of species to each list element
+names(adj_positive_orthogene_listBS) <- species_vec
+
+# obtain a new dataframe with number of genes under posiitve selection (significant)
+adj_positive_orthogen_dfBS <- as.data.frame(cbind(species_vec,
+      c(length(adj_positive_orthogene_listBS[[1]]),
+  length(adj_positive_orthogene_listBS[[2]]),
+  length(adj_positive_orthogene_listBS[[3]]),
+  length(adj_positive_orthogene_listBS[[4]]),
+  length(adj_positive_orthogene_listBS[[5]]),
+  length(adj_positive_orthogene_listBS[[6]]),
+  length(adj_positive_orthogene_listBS[[7]]),
+  length(adj_positive_orthogene_listBS[[8]]),
+  length(adj_positive_orthogene_listBS[[9]]),
+  length(adj_positive_orthogene_listBS[[10]]))),
+  stringsAsFactors = FALSE)
+
+# name the columns
+colnames(adj_positive_orthogen_dfBS) <- c("species",
+                                          "Branch Site model genes under positive selection (adj)")
+
+# print summary table
+adj_positive_orthogen_dfBS
+
+# average 30
+#mean(as.numeric(adj_positive_orthogen_dfBS$"Branch Site model genes under positive selection (adj)"))
+
+```
+
+In the branch-site model there is an average of 30 orthogenes per species for which dN/dS is significantly higher than 1, when adjusted for multiple comparison (Benjamini and Hochberg). Interestingly, the most social species (Vespula, Vespa, Brachygastra) do not have the highest number of orthogroups under positive selection (branch-site model). Maybe these species differ in the number of sites under selection in each orthogroup.
+
+The list is saved on myriad, to be compared with DEGs.
+
+```{r list of orthogenes under pos selection adj, eval = TRUE, echo = FALSE, include = TRUE}
+#adj_positive_orthogene_listBS
+
+# any common orthogene?
+adj_orthogroups_occurenceBS <- unlist(adj_positive_orthogene_listBS)
+#length(unlist(adj_orthogroups_occurenceBS))
+#length(unique(adj_orthogroups_occurenceBS))
+
+# one orthogroup is found twice
+adj_common_orthogroupsBS <- names(table(adj_orthogroups_occurenceBS)[table(adj_orthogroups_occurenceBS) == 2])
+#"OG0004867"
+
+# save list of orthogroups per species
+for(i in 1:length(species_vec)){
+  file_name <- paste("result/branch-site-models/significant-orthogroups/adj-positive-orthogene-list",
+                     species_vec[i],
+                     sep = "-")
+  write.table(x = adj_positive_orthogene_listBS[[i]],
+            file = file_name,
+            row.names = FALSE,
+            col.names = FALSE,
+            quote = FALSE)
+}
+```
+
+
+
+```{r look at overlap between the two models, eval = TRUE, echo = FALSE, include = TRUE}
+# find overlap between branch model and branch-site model
+strong_signal_orthogroup_list <- list()
+
+
+for (i in 1:10){
+  # find orthgroups found in both models
+  overlap_vec <- adj_positive_orthogene_list[[i]] %in% adj_positive_orthogene_listBS[[i]]
+  
+  # if there are some overlap
+  if(sum(overlap_vec) > 0){
+    
+    # add the orthogroup names to appropriate list element
+    strong_signal_orthogroup_list[[i]] <- adj_positive_orthogene_list[[i]][adj_positive_orthogene_list[[i]] %in% adj_positive_orthogene_listBS[[i]]]
+  names(strong_signal_orthogroup_list)[i] <- species_vec[i]
+ 
+  } 
+}
+
+# remove list elements that are empty (ie no overlap)
+strong_signal_orthogroup_list[lengths(strong_signal_orthogroup_list) != 0]
+
+# unlist to save
+strong_signal_orthogroup_vec <- unlist(strong_signal_orthogroup_list[lengths(strong_signal_orthogroup_list) != 0])
+
+strong_signal_orthogroup_df <- cbind(names(strong_signal_orthogroup_vec ),
+                                     strong_signal_orthogroup_vec )
+
+colnames(strong_signal_orthogroup_df) <- c("species",
+                                           "orthogroup")
+# save list
+filename <- "result/orthogroups_pos_selection_both_models"
+
+write.table(x = strong_signal_orthogroup_df,
+            file = filename,
+            row.names = FALSE,
+            col.names = FALSE,
+            quote = FALSE)
+```
+
+There are 6 orthogroups that are significantly under positive selection in both the branch model and branch-site model: 2 in Polistes, 1 in the following: Brachygastra, Mischocyttarus, Polybia, Vespa. These orthogroups are under strong positive selection at the branch level (when omega for all loci is averaged), and at the branch-site level. 
+
+#### Qualifying species by sites under positive selection
+
+##### Aim 5: Plot orthogroup count vs average site per orthogroup
+
+```{r social spectrum plot, eval = TRUE, echo = FALSE, include = TRUE}
+# each species has a number of orthogroups under positive selection
+# (branch-site, p < 0.05, BH adjustment)
+# each species has a number of sites unde rpositive selection (in a given orthogroup)
+
+# name columns
+colnames(agelaia_sig_loc_df) <- c("orthogroup",
+                                  "loci_num")
+colnames(angiopolybia_sig_loc_df) <- c("orthogroup",
+                                  "loci_num")
+colnames(brachygastra_sig_loc_df) <- c("orthogroup",
+                                  "loci_num")
+colnames(metapolybia_sig_loc_df) <- c("orthogroup",
+                                  "loci_num")
+colnames(mischocyttarus_sig_loc_df) <- c("orthogroup",
+                                  "loci_num")
+colnames(polistes_sig_loc_df) <- c("orthogroup",
+                                  "loci_num")
+colnames(polybia_sig_loc_df) <- c("orthogroup",
+                                  "loci_num")
+colnames(vespa_sig_loc_df) <- c("orthogroup",
+                                  "loci_num")
+colnames(vespula_sig_loc_df) <- c("orthogroup",
+                                  "loci_num")
+colnames(vespids_sig_loc_df) <- c("orthogroup",
+                                  "loci_num")
+
+
+# remove 0
+brachygastra_sig_loc_df <- brachygastra_sig_loc_df %>% filter(loci_num != 0)
+polistes_sig_loc_df     <- polistes_sig_loc_df %>% filter(loci_num != 0)
+vespa_sig_loc_df        <- vespa_sig_loc_df %>% filter(loci_num != 0)
+# plot data
+# hist(agelaia_sig_loc_df$loci_num)
+# hist(angiopolybia_sig_loc_df$loci_num)
+# hist(brachygastra_sig_loc_df$loci_num)
+# hist(metapolybia_sig_loc_df$loci_num)
+# hist(mischocyttarus_sig_loc_df$loci_num)
+# hist(polistes_sig_loc_df$loci_num)
+# hist(polybia_sig_loc_df$loci_num)
+# hist(vespa_sig_loc_df$loci_num)
+# hist(vespula_sig_loc_df$loci_num)
+# hist(vespids_sig_loc_df$loci_num)
+
+# most of the distribution are exponential
+# i need to Z-score normalise: substract mean from each count, then divide by its standard deviation
+# agelaia_sig_loc_df$normalised_loci <- ( mean(agelaia_sig_loc_df$loci_num) - agelaia_sig_loc_df$loci_num ) / sd(agelaia_sig_loc_df$loci_num)
+# 
+# angiopolybia_sig_loc_df$normalised_loci <- ( mean(angiopolybia_sig_loc_df$loci_num) - angiopolybia_sig_loc_df$loci_num ) / sd(angiopolybia_sig_loc_df$loci_num)
+# 
+# brachygastra_sig_loc_df$normalised_loci <- ( mean(brachygastra_sig_loc_df$loci_num) - brachygastra_sig_loc_df$loci_num ) / sd(brachygastra_sig_loc_df$loci_num)
+# 
+# metapolybia_sig_loc_df$normalised_loci <- ( mean(metapolybia_sig_loc_df$loci_num) - metapolybia_sig_loc_df$loci_num ) / sd(metapolybia_sig_loc_df$loci_num)
+# 
+# mischocyttarus_sig_loc_df$normalised_loci <- ( mean(mischocyttarus_sig_loc_df$loci_num) - mischocyttarus_sig_loc_df$loci_num ) / sd(mischocyttarus_sig_loc_df$loci_num)
+# 
+# polistes_sig_loc_df$normalised_loci <- ( mean(polistes_sig_loc_df$loci_num) - polistes_sig_loc_df$loci_num ) / sd(polistes_sig_loc_df$loci_num)
+# 
+# polybia_sig_loc_df$normalised_loci <- ( mean(polybia_sig_loc_df$loci_num) - polybia_sig_loc_df$loci_num ) / sd(polybia_sig_loc_df$loci_num)
+# 
+# vespa_sig_loc_df$normalised_loci <- ( mean(vespa_sig_loc_df$loci_num) - vespa_sig_loc_df$loci_num ) / sd(vespa_sig_loc_df$loci_num)
+# 
+# vespula_sig_loc_df$normalised_loci <- ( mean(vespula_sig_loc_df$loci_num) - vespula_sig_loc_df$loci_num ) / sd(vespula_sig_loc_df$loci_num)
+# 
+# vespids_sig_loc_df$normalised_loci <- ( mean(vespids_sig_loc_df$loci_num) - vespids_sig_loc_df$loci_num ) / sd(vespids_sig_loc_df$loci_num)
+
+# log normalisation
+agelaia_sig_loc_df$lognormalised_loci        <- log10(agelaia_sig_loc_df$loci_num)
+angiopolybia_sig_loc_df$lognormalised_loci   <- log10(angiopolybia_sig_loc_df$loci_num)
+brachygastra_sig_loc_df$lognormalised_loci   <- log10(brachygastra_sig_loc_df$loci_num)
+metapolybia_sig_loc_df$lognormalised_loci    <- log10(metapolybia_sig_loc_df$loci_num)
+mischocyttarus_sig_loc_df$lognormalised_loci <- log10(mischocyttarus_sig_loc_df$loci_num)
+polistes_sig_loc_df$lognormalised_loci       <- log10(polistes_sig_loc_df$loci_num)
+polybia_sig_loc_df$lognormalised_loci        <- log10(polybia_sig_loc_df$loci_num)
+vespa_sig_loc_df$lognormalised_loci          <- log10(vespa_sig_loc_df$loci_num)
+vespula_sig_loc_df$lognormalised_loci        <- log10(vespula_sig_loc_df$loci_num)
+vespids_sig_loc_df$lognormalised_loci        <- log10(vespids_sig_loc_df$loci_num)
+
+
+
+
+# plot data - I think log normalisation does a better job
+hist(agelaia_sig_loc_df$lognormalised_loci)
+hist(angiopolybia_sig_loc_df$lognormalised_loci)
+hist(brachygastra_sig_loc_df$lognormalised_loci)
+hist(metapolybia_sig_loc_df$lognormalised_loci)
+hist(mischocyttarus_sig_loc_df$lognormalised_loci)
+hist(polistes_sig_loc_df$lognormalised_loci)
+hist(polybia_sig_loc_df$lognormalised_loci)
+hist(vespa_sig_loc_df$lognormalised_loci)
+hist(vespula_sig_loc_df$lognormalised_loci)
+hist(vespids_sig_loc_df$lognormalised_loci)
+
+
+# species | mean of log normalised loci num | num ortholog
+sig_loc_df <- as.data.frame(cbind(species_vec,
+                    c(mean(agelaia_sig_loc_df$lognormalised_loci),
+                      mean(angiopolybia_sig_loc_df$lognormalised_loci),
+                      mean(brachygastra_sig_loc_df$lognormalised_loci),
+                      mean(metapolybia_sig_loc_df$lognormalised_loci),
+                      mean(mischocyttarus_sig_loc_df$lognormalised_loci),
+                      mean(polistes_sig_loc_df$lognormalised_loci),
+                      mean(polybia_sig_loc_df$lognormalised_loci),
+                      mean(vespa_sig_loc_df$lognormalised_loci),
+                      mean(vespula_sig_loc_df$lognormalised_loci),
+                      mean(vespids_sig_loc_df$lognormalised_loci)),
+                    c(nrow(agelaia_sig_loc_df),
+                      nrow(angiopolybia_sig_loc_df),
+                      nrow(brachygastra_sig_loc_df),
+                      nrow(metapolybia_sig_loc_df),
+                      nrow(mischocyttarus_sig_loc_df),
+                      nrow(polistes_sig_loc_df),
+                      nrow(polybia_sig_loc_df),
+                      nrow(vespa_sig_loc_df),
+                      nrow(vespula_sig_loc_df),
+                      nrow(vespids_sig_loc_df))),
+                    stringsAsFactors = FALSE)
+
+
+# colnames
+colnames(sig_loc_df) <- c("species",
+                          "mean_lognormalised_num_sig_loci",
+                          "sig_num_orthogroup")
+
+# add traits
+sig_loc_df$tribe <- "Epiponini"
+sig_loc_df$tribe[sig_loc_df$species %in% c("vespa", "vespula", "vespa_and_vespula")] <- "Vespini"
+sig_loc_df$tribe[sig_loc_df$species == "polistes"] <-"Polistini"
+sig_loc_df$tribe[sig_loc_df$species == "mischocyttarus"] <-"Mischocyttarini"
+
+# max colony size
+sig_loc_df$max_colony_size <- 2000
+sig_loc_df$max_colony_size[sig_loc_df$species == "vespula"] <- 10000
+sig_loc_df$max_colony_size[sig_loc_df$species == "polistes"] <- 100
+sig_loc_df$max_colony_size[sig_loc_df$species == "mischocyttarus"] <- 10
+sig_loc_df$max_colony_size[sig_loc_df$species == "brachygastra"] <- 17000
+sig_loc_df$max_colony_size[sig_loc_df$species == "agelaia"] <- 3000
+sig_loc_df$max_colony_size[sig_loc_df$species == "angiopolybia"] <- 600
+sig_loc_df$max_colony_size[sig_loc_df$species == "metapolybia"] <- 300
+
+# remove vespids indo
+sig_loc_df <- sig_loc_df %>% filter(species != "vespa_and_vespula")
+
+# update class
+sig_loc_df$mean_lognormalised_num_sig_loci <- as.numeric(sig_loc_df$mean_lognormalised_num_sig_loci)
+sig_loc_df$sig_num_orthogroup <- as.numeric(sig_loc_df$sig_num_orthogroup)
+
+
+# plot number of orthogroup and mean of loci under positive selection
+# we expect negative correlation, ordered by social spectrum
+# more social species top left, less social species bottom right
+ggplot(sig_loc_df,
+       aes(x = sig_num_orthogroup,
+           y = mean_lognormalised_num_sig_loci,
+           fill = log2(max_colony_size),
+           shape = tribe)) + 
+    geom_point(size = 4, colour = "black") +
+  geom_text(
+    label = sig_loc_df$species, 
+    check_overlap = T,
+    nudge_y = 0.04,
+    size = 3) +
+  xlab("Number of orthogroups dN/dS < 0.05 (branch-site, BH)") +
+  ylab("Mean of sites under positive selection (log10)") +
+   scale_fill_gradient(low = "white", high = "black") +
+  scale_shape_manual(values = c(21, 22, 23, 24))
+
+ggsave("result/branch-site-models/sites-plot.pdf", device = "pdf")
+ggsave("result/branch-site-models/sites-plot.tiff", device = "tiff")
+
+```
+We explored positive selection signal in relation to the social spectrum. We expected superorganismal species to have more orthogroups and more sites within a given orthogroup that experienced positive selection. We find that the relationship between number of orthogroup and number of sites is taxonomically restricted (ie species group by tribe).
+For instance superorganismal Vespa has 31 orthogroups under positive selection, with a mean of 27 sites under positive selection for a given orthogroup. In contrast, non-superorganismal Metapolybia has only 15 orthogroups under positive selection, with a mean of 3 sites under positive selection for a given orthogroup.  
+X axis is the number of orthogroups that have experienced episodic positive selection on the species' branch (i.e. dN/dS ratio is higher than 1 for some sites within these orthogroups).
+Y axis is the mean of number of sites under positive selection (from the branch-site model), after log10 normalisation. 
+The shape indicates the species' taxonomic tribe.
+The shade corresponds to the size of the colony (log2 normalised): the darker the species, the larger the colony size.
+Epiponini are grouped together, with a small number of orthogroups that have experienced a significant positive selection in certain sites of their foreground species branch (codeml branch-site model, Benjamin and Hochberg adjustment). They also have a smaller number of sites in a given ortholog that have experienced positive selection.
+
+Vespids have more orthogroups with positive selection, and more sites under positive selection within those orthogroups.
+
+Are there any overlap of orthogroups?
+```{r overlap of pos sel ortho, eval = TRUE, echo = FALSE, include = TRUE}
+
+# unique list of all orthogroups
+ortho_vec <- unique(c(agelaia_sig_loc_df$orthogroup,
+  angiopolybia_sig_loc_df$orthogroup,
+  brachygastra_sig_loc_df$orthogroup,
+  metapolybia_sig_loc_df$orthogroup,
+  mischocyttarus_sig_loc_df$orthogroup,
+  polistes_sig_loc_df$orthogroup,
+  polybia_sig_loc_df$orthogroup,
+  vespa_sig_loc_df$orthogroup,
+  vespula_sig_loc_df$orthogroup))
+
+# first column of heatmap list all orthologs
+orthologs <- rep(ortho_vec, times = 9)
+
+# presence/absence of ortholog in species
+positiveSelection <- rep(0, times = length(orthologs))
+
+# species column: each species re
+species <- rep(species_vec[-10], times = 9)
+
+# make table for heatmap
+heatmap_df <- expand.grid(orthologs = orthologs,
+                          positiveSelection = positiveSelection,
+                          stringsAsFactors = FALSE)
+# add species
+heatmap_df$species <- species
+
+# for each species
+this_species <- species[1]
+
+# add a 1 if the orthogroup is present
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% agelaia_sig_loc_df$orthogroup == TRUE){
+      heatmap_df$positiveSelection[heatmap_df$orthologs == ortho_vec[i] & heatmap_df$species == "agelaia"] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% angiopolybia_sig_loc_df$orthogroup == TRUE){
+      heatmap_df$positiveSelection[heatmap_df$orthologs == ortho_vec[i] & heatmap_df$species == "angiopolybia"] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% brachygastra_sig_loc_df$orthogroup == TRUE){
+      heatmap_df$positiveSelection[heatmap_df$orthologs == ortho_vec[i] & heatmap_df$species == "brachygastra"] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% metapolybia_sig_loc_df$orthogroup == TRUE){
+      heatmap_df$positiveSelection[heatmap_df$orthologs == ortho_vec[i] & heatmap_df$species == "metapolybia"] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% mischocyttarus_sig_loc_df$orthogroup == TRUE){
+      heatmap_df$positiveSelection[heatmap_df$orthologs == ortho_vec[i] & heatmap_df$species == "mischocyttarus"] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% polistes_sig_loc_df$orthogroup == TRUE){
+      heatmap_df$positiveSelection[heatmap_df$orthologs == ortho_vec[i] & heatmap_df$species == "polistes"] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% polybia_sig_loc_df$orthogroup == TRUE){
+      heatmap_df$positiveSelection[heatmap_df$orthologs == ortho_vec[i] & heatmap_df$species == "polybia"] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% vespa_sig_loc_df$orthogroup == TRUE){
+      heatmap_df$positiveSelection[heatmap_df$orthologs == ortho_vec[i] & heatmap_df$species == "vespa"] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% vespula_sig_loc_df$orthogroup == TRUE){
+      heatmap_df$positiveSelection[heatmap_df$orthologs == ortho_vec[i] & heatmap_df$species == "vespula"] <- 1
+    } 
+}
+
+# # order the x axis (species) by taxonomic range
+# heatmap_df$species <- factor(data$species,
+#                              levels = c("angiopolybia",
+#                                         "metapolybia",
+#                                         "brachygastra",
+#                                         "polybia",
+#                                         "vespula",
+#                                         "vespa",
+#                                         "mischocyttarus",
+#                                         "polistes"))
+
+# make a heatmap
+ggplot(heatmap_df, aes(species, orthologs, fill= positiveSelection)) + 
+  geom_tile()
+
+# make it a matrix
+# subset(heatmap_df, subset = heatmap_df$species == "agelaia")
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# heatmap(heatmap_mat)
+
+# https://jcoliver.github.io/learn-r/008-ggplot-dendrograms-and-heatmaps.html
+install.packages("ggdendro")
+library("ggdendro")
+library("reshape2")
+
+# make data like the tutorial
+# rows are species listed once, without vespid group
+taxonomic_vec <- species_vec[-10]
+
+# columns are orthogroup 
+heatmap_mat <- as.data.frame(matrix(0, ncol = length(ortho_vec),
+                         nrow = length(taxonomic_vec)),
+                         stringsAsFactor = FALSE)
+
+
+colnames(heatmap_mat) <- ortho_vec
+
+# add a column for species
+heatmap_mat$species <- taxonomic_vec
+
+# add a 1 if the orthogroup is present in the species sig orthogroup list
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% agelaia_sig_loc_df$orthogroup){
+      heatmap_mat[heatmap_mat$species == "agelaia",
+                  colnames(heatmap_mat) == ortho_vec[i]] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% angiopolybia_sig_loc_df$orthogroup == TRUE){
+      heatmap_mat[heatmap_mat$species == "angiopolybia",
+                  colnames(heatmap_mat) == ortho_vec[i]] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% brachygastra_sig_loc_df$orthogroup == TRUE){
+      heatmap_mat[heatmap_mat$species == "brachygastra",
+                  colnames(heatmap_mat) == ortho_vec[i]] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% metapolybia_sig_loc_df$orthogroup == TRUE){
+      heatmap_mat[heatmap_mat$species == "metapolybia",
+                  colnames(heatmap_mat) == ortho_vec[i]] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% mischocyttarus_sig_loc_df$orthogroup == TRUE){
+      heatmap_mat[heatmap_mat$species == "mischocyttarus",
+                  colnames(heatmap_mat) == ortho_vec[i]] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% polistes_sig_loc_df$orthogroup == TRUE){
+      heatmap_mat[heatmap_mat$species == "polistes",
+                  colnames(heatmap_mat) == ortho_vec[i]] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% polybia_sig_loc_df$orthogroup == TRUE){
+      heatmap_mat[heatmap_mat$species == "polybia",
+                  colnames(heatmap_mat) == ortho_vec[i]] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% vespa_sig_loc_df$orthogroup == TRUE){
+      heatmap_mat[heatmap_mat$species == "vespa",
+                  colnames(heatmap_mat) == ortho_vec[i]] <- 1
+    } 
+}
+
+for(i in 1:length(ortho_vec)){
+    if(ortho_vec[i] %in% vespula_sig_loc_df$orthogroup == TRUE){
+      heatmap_mat[heatmap_mat$species == "vespula",
+                  colnames(heatmap_mat) == ortho_vec[i]] <- 1
+    } 
+}
+
+heatmap_mat[, !names(heatmap_mat) %in% "species"]
+
+# Run clustering
+heatmap.matrix <- as.matrix(heatmap_mat[, !names(heatmap_mat) %in% "species"])
+rownames(heatmap.matrix) <- heatmap_mat$species
+heatmap.dendro <- as.dendrogram(hclust(d = dist(x = t(heatmap.matrix))))
+
+# Create dendro
+dendro.plot <- ggdendrogram(data = heatmap.dendro, rotate = TRUE) + 
+    theme(axis.text.y = element_text(size = 3))
+
+# Preview the plot
+print(dendro.plot)
+
+```
+
+
+```{r heatmap and table, eval = TRUE, echo = FALSE, include = TRUE, fig.height = 14, fig.width = 5}
+# transform in long format (id is the column that stays)
+heatmap_mat_long <- melt(heatmap_mat, id = "species")
+
+# now plot the heatmap
+heatmap.plot <- ggplot(data = heatmap_mat_long,
+                       aes(x = species, y = variable)) +
+  geom_tile(aes(fill = factor(value))) +
+  scale_fill_manual(values = c("grey", "black")) +
+  theme(axis.text.y = element_text(size = 5),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+#options(repr.plot.width = 1, repr.plot.height = 2)
+# Preview the heatmap
+print(heatmap.plot)
+
+# save this graph
+ggsave("result/branch-site-models/overlap-heatmap.pdf", device = "pdf")
+ggsave("result/branch-site-models/overlap-heatmap.tiff", device = "tiff")
+
+# for the supplementary result,
+# list all orthologs and whether they are are under pos sel in a given species
+# add also a summary table
+pos_sel_orthogroups_sp_df <- as.data.frame(t(heatmap_mat),
+                                           stringsAsFactors = FALSE)
+
+#str(pos_sel_orthogroups_sp_df)
+
+# name the columns with species
+colnames(pos_sel_orthogroups_sp_df) <- pos_sel_orthogroups_sp_df[234, ]
+
+# remove the last row which is species and not relevent
+pos_sel_orthogroups_sp_df <- pos_sel_orthogroups_sp_df[1:233, ]
+
+# make the values numeric
+pos_sel_orthogroups_sp_df$agelaia <- as.numeric(pos_sel_orthogroups_sp_df$agelaia)
+pos_sel_orthogroups_sp_df$angiopolybia <- as.numeric(pos_sel_orthogroups_sp_df$angiopolybia)
+pos_sel_orthogroups_sp_df$brachygastra <- as.numeric(pos_sel_orthogroups_sp_df$brachygastra)
+pos_sel_orthogroups_sp_df$metapolybia <- as.numeric(pos_sel_orthogroups_sp_df$metapolybia)
+pos_sel_orthogroups_sp_df$mischocyttarus <- as.numeric(pos_sel_orthogroups_sp_df$mischocyttarus)
+pos_sel_orthogroups_sp_df$polistes <- as.numeric(pos_sel_orthogroups_sp_df$polistes)
+pos_sel_orthogroups_sp_df$polybia <- as.numeric(pos_sel_orthogroups_sp_df$polybia)
+pos_sel_orthogroups_sp_df$vespa <- as.numeric(pos_sel_orthogroups_sp_df$vespa)
+pos_sel_orthogroups_sp_df$vespula <- as.numeric(pos_sel_orthogroups_sp_df$vespula)
+
+# sum of rows give us the number of species each orthogroup under pos sel has
+# table gives us a quick summary
+table(rowSums(pos_sel_orthogroups_sp_df))
+
+# there is very little overlap in the 233 orthogroups under positive selection across the 9 species
+# branch-site dn/ds > 1, adjusted for multiple comparison (Benjamin and Hochberg)
+# The vast majority of the orthogroups are unique to one species (n = 209). 9% of orthogroups are under positive selection in 2 out of 9 species (n = 22). Finally, 2 orthogroups are under positive selection in three species: OG0003436 (agelaia, polistes, vespa) and OG0003523 (Brachygastra, Metapolybia, Polybia).
+# 209 orthogroups under positive selection in one species only
+# 22 orthogroups under positive selection in two species
+# 2 orthogroups under positive selection in three species 
+# no orthogroup is under positive selection in all 9 species
+
+filename <- "result/2021-04-28-positive-selection-orthogroups-species"
+
+# save table
+write.table(x = pos_sel_orthogroups_sp_df,
+            file = filename,
+            row.names = TRUE,
+            col.names = TRUE,
+            quote = FALSE)
+
+```
+
+
+Conclusion
+
+##### Aim 6: Plot dN/dS between groups of species (complex vs simple)
+
+```{r dN/dS plot between phenotypes, eval = TRUE, echo = FALSE, include = TRUE}
+# inspired by Shell et al 2021 Figure 3b
+
+# data: agelaia_results
+
+# x axis: dN/dS of foreground branch in M0 model (NSites = 0, model = 0, aka branch model)
+# for all orthogroups, then maybe for orthogroups with p<0.05
+# x <- agelaia_results$foreground_w
+
+# dataframe with orthogroups and dnds in background for all species
+# including whether they are complex or simple
+
+
+dnds_distribution_df <- data.frame(orthogroup = agelaia_results$orthogroup,
+                                   dnds = agelaia_results$foreground_w,
+                                   species = "agelaia",
+                                   sociality = "complex")
+
+# combine info about species, omega and social complexity level
+dnds_all_distribution_df <- rbind(dnds_distribution_df,
+      data.frame(orthogroup = angiopolybia_results$orthogroup,
+                                   dnds = angiopolybia_results$foreground_w,
+                                   species = "angiopolybia",
+                                   sociality = "simple"),
+      data.frame(orthogroup = brachygastra_results$orthogroup,
+                                   dnds = brachygastra_results$foreground_w,
+                                   species = "brachygastra",
+                                   sociality = "complex"),
+      data.frame(orthogroup = metapolybia_results$orthogroup,
+                                   dnds = metapolybia_results$foreground_w,
+                                   species = "metapolybia",
+                                   sociality = "simple"),
+      data.frame(orthogroup = mischocyttarus_results$orthogroup,
+                                   dnds = mischocyttarus_results$foreground_w,
+                                   species = "mischocyttarus",
+                                   sociality = "simple"),
+      data.frame(orthogroup = polistes_results$orthogroup,
+                                   dnds = polistes_results$foreground_w,
+                                   species = "polistes",
+                                   sociality = "simple"),
+      data.frame(orthogroup = polybia_results$orthogroup,
+                                   dnds = polybia_results$foreground_w,
+                                   species = "polybia",
+                                   sociality = "simple"),
+      data.frame(orthogroup = vespa_results$orthogroup,
+                                   dnds = vespa_results$foreground_w,
+                                   species = "vespa",
+                                   sociality = "complex"),
+      data.frame(orthogroup = vespula_results$orthogroup,
+                                   dnds = vespula_results$foreground_w,
+                                   species = "vespula",
+                                   sociality = "complex"))
+
+
+# any value over 2 (positive selection), becomes 2
+#dnds_all_distribution_df$dnds[dnds_all_distribution_df$dnds > 2] <- 2
+
+
+# distribution plot per complexity level
+# ggplot(test, aes(x = dnds)) +
+#   geom_histogram(binwidth = 0.01)
+# ggplot(dnds_all_distribution_df, aes(x = dnds, fill = factor(sociality))) +
+#   geom_density(alpha = 0.5) + xlim(0, 1)
+
+# calculate global median dnds
+global_median_dnds <- median(dnds_all_distribution_df$dnds)
+
+# calculate median for simple
+simple_median_dnds <- median(dnds_all_distribution_df$dnds[dnds_all_distribution_df$sociality == "simple"])
+complex_median_dnds <- median(dnds_all_distribution_df$dnds[dnds_all_distribution_df$sociality == "complex"])
+
+
+# jitter version
+ggplot(dnds_all_distribution_df, aes(x = sociality, y = dnds)) + 
+  geom_jitter() + 
+  geom_hline(yintercept = simple_median_dnds, linetype="dashed", color = "green")+ 
+  geom_hline(yintercept = complex_median_dnds, linetype="dashed", color = "red") + 
+  geom_hline(yintercept = global_median_dnds, linetype="dashed", color = "orange") + coord_flip() 
+```
+```{r dN/dS plot Complex polistines, eval = TRUE, echo = FALSE, include = TRUE}
+# inspired by Shell et al 2021 Figure 3b
+# here we take only the polistinae (removing vespa and vespula)
+
+# combine info about species, omega and social complexity level
+dnds_polistines_distribution_df <- rbind(data.frame(orthogroup = agelaia_results$orthogroup,
+                                   dnds = agelaia_results$foreground_w,
+                                   species = "agelaia",
+                                   sociality = "complex"),
+      data.frame(orthogroup = angiopolybia_results$orthogroup,
+                                   dnds = angiopolybia_results$foreground_w,
+                                   species = "angiopolybia",
+                                   sociality = "simple"),
+      data.frame(orthogroup = brachygastra_results$orthogroup,
+                                   dnds = brachygastra_results$foreground_w,
+                                   species = "brachygastra",
+                                   sociality = "complex"),
+      data.frame(orthogroup = metapolybia_results$orthogroup,
+                                   dnds = metapolybia_results$foreground_w,
+                                   species = "metapolybia",
+                                   sociality = "simple"),
+      data.frame(orthogroup = mischocyttarus_results$orthogroup,
+                                   dnds = mischocyttarus_results$foreground_w,
+                                   species = "mischocyttarus",
+                                   sociality = "simple"),
+      data.frame(orthogroup = polistes_results$orthogroup,
+                                   dnds = polistes_results$foreground_w,
+                                   species = "polistes",
+                                   sociality = "simple"),
+      data.frame(orthogroup = polybia_results$orthogroup,
+                                   dnds = polybia_results$foreground_w,
+                                   species = "polybia",
+                                   sociality = "simple"))
+
+
+# any value over 2 (positive selection), becomes 2
+dnds_polistines_distribution_df$dnds[dnds_polistines_distribution_df$dnds > 2] <- 2
+
+
+# distribution plot per complexity level
+# ggplot(test, aes(x = dnds)) +
+#   geom_histogram(binwidth = 0.01)
+ggplot(dnds_polistines_distribution_df, aes(x = dnds, fill = factor(sociality))) +
+  geom_density(alpha = 0.5) + xlim(0, 1)
+
+# calculate global median dnds
+global_median_dnds <- median(dnds_polistines_distribution_df$dnds)
+
+# calculate median for simple
+simple_median_dnds <- median(dnds_polistines_distribution_df$dnds[dnds_polistines_distribution_df$sociality == "simple"])
+complex_median_dnds <- median(dnds_polistines_distribution_df$dnds[dnds_polistines_distribution_df$sociality == "complex"])
+
+
+# jitter version
+ggplot(dnds_polistines_distribution_df, aes(x = sociality, y = dnds)) + 
+  geom_jitter() + 
+  geom_hline(yintercept = simple_median_dnds, linetype="dashed", color = "green")+ 
+  geom_hline(yintercept = complex_median_dnds, linetype="dashed", color = "red") + 
+  geom_hline(yintercept = global_median_dnds, linetype="dashed", color = "orange") + coord_flip() 
+```
+
+
+```{r record versions of session, eval = TRUE, echo = FALSE, include = FALSE}
+# record versions of R and packages here
+sessionInfo()
+# R version 3.6.3 (2020-02-29)
+# Platform: x86_64-apple-darwin15.6.0 (64-bit)
+# Running under: macOS  10.16
+# 
+# Matrix products: default
+# LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+# 
+# locale:
+# [1] en_GB.UTF-8/en_GB.UTF-8/en_GB.UTF-8/C/en_GB.UTF-8/en_GB.UTF-8
+# 
+# attached base packages:
+# [1] stats     graphics  grDevices utils     datasets  methods   base     
+# 
+# other attached packages:
+# [1] forcats_0.5.1   stringr_1.4.0   dplyr_1.0.4     purrr_0.3.4     readr_1.4.0    
+# [6] tidyr_1.1.3     tibble_3.1.0    tidyverse_1.3.0 ggplot2_3.3.3  
+# 
+# loaded via a namespace (and not attached):
+#  [1] Rcpp_1.0.6       cellranger_1.1.0 pillar_1.5.0     compiler_3.6.3   dbplyr_2.1.0    
+#  [6] tools_3.6.3      lubridate_1.7.10 jsonlite_1.7.2   lifecycle_1.0.0  gtable_0.3.0    
+# [11] pkgconfig_2.0.3  rlang_0.4.10     reprex_1.0.0     cli_2.3.1        rstudioapi_0.13 
+# [16] DBI_1.1.1        haven_2.3.1      xfun_0.21        xml2_1.3.2       withr_2.4.1     
+# [21] httr_1.4.2       knitr_1.31       fs_1.5.0         generics_0.1.0   vctrs_0.3.6     
+# [26] hms_1.0.0        grid_3.6.3       tidyselect_1.1.0 glue_1.4.2       R6_2.5.0        
+# [31] fansi_0.4.2      readxl_1.3.1     modelr_0.1.8     magrittr_2.0.1   scales_1.1.1    
+# [36] backports_1.2.1  ellipsis_0.3.1   rvest_0.3.6      assertthat_0.2.1 colorspace_2.0-0
+# [41] utf8_1.1.4       stringi_1.5.3    munsell_0.5.0    broom_0.7.5      crayon_1.4.1  
+```

@@ -1,0 +1,439 @@
+# 2021-03-05
+## Author: Emeline Favreau
+## Objective: Running dnds analyses for multispecies paper. 
+# There are 9 species, each with the longest isoform for each gene in nucleotide and protein files.
+
+## Analysis steps:
+# Obtaining data
+# Aim 1: obtain fasta nucleotides of those orthogroups for each species
+# Aim 2: align each orthogroup fasta sequence with each other
+# Aim 3: calculate dN/dS for each orthogroup and each species
+# Aim 4: calculate dN/dS for each orthogroup for specific foreground
+# Aim 5: run branch-site models
+
+###############################################################################
+# Obtaining data
+
+# set project structure
+mkdir -p ~/Scratch/multispecies-dnds/result
+mkdir -p ~/Scratch/multispecies-dnds/tmp
+ln -s ~/Scratch/multispecies-dnds/result resultOnScratch
+ln -s ~/Scratch/multispecies-dnds/tmp tmp
+
+# data from Chris Wyatt
+# The *cds.largestIsoform are the nucleotide coding sequence for each predicted protein
+# some sequences names are the same in different files! need to add the species names
+# the *transcriptome.contig.fa are the predicted protein fasta files
+
+
+# version of tools used
+OrthoFinder
+Prank: v.151120
+PAML: v. 4.8
+
+
+###############################################################################
+# Aim 1: obtain fasta nucleotides of those orthogroups for each species
+
+# add species names to nucleotide sequences and in orthogroups file
+sed -i "s/>/>Agelaia_cajannensis-/g" input/Agelaia.cds.largestIsoform
+sed -i "s/>/>Vespa_crabro-/g" input/Vespa.cds.largestIsoform
+sed -i "s/>/>Vespula_vulgaris-/g" input/Vespula.cds.largestIsoform
+sed -i "s/>/>Mischocyttarus_basimacula-/g" input/Mischocyttarus.cds.largestIsoform
+sed -i "s/>/>Polistes_canadensis-/g" input/Polistes.cds.largestIsoform
+sed -i "s/>/>Polybia_quadracincta-/g" input/Polybia.cds.largestIsoform
+sed -i "s/>/>Metapolybia_cingulata-/g" input/Metapolybia.cds.largestIsoform
+sed -i "s/>/>Brachygastra_mellifica-/g" input/Brachygastra.cds.largestIsoform
+sed -i "s/>/>Angiopolybia_pallens-/g" input/Angiopolybia.cds.largestIsoform
+
+# update names of sequences in Orthogroups.csv
+cut -f 1 input/Orthogroups.csv  > tmp/first-col-Orthogroups
+cut -f 2 input/Orthogroups.csv | sed "s/TRINITY/Agelaia_cajannensis-TRINITY/g" > tmp/Agelaia-Orthogroups
+cut -f 3 input/Orthogroups.csv | sed "s/TRINITY/Angiopolybia_pallens-TRINITY/g"  > tmp/Angiopolybia-Orthogroups
+cut -f 4 input/Orthogroups.csv | sed "s/TRINITY/Brachygastra_mellifica-TRINITY/g"  > tmp/Brachygastra-Orthogroups
+cut -f 5 input/Orthogroups.csv | sed "s/TRINITY/Metapolybia_cingulata-TRINITY/g"  > tmp/Metapolybia-Orthogroups
+cut -f 6 input/Orthogroups.csv | sed "s/TRINITY/Mischocyttarus_basimacula-TRINITY/g"  > tmp/Mischocyttarus-Orthogroups
+cut -f 7 input/Orthogroups.csv | sed "s/TRINITY/Polistes_canadensis-TRINITY/g"  > tmp/Polistes-Orthogroups
+cut -f 8 input/Orthogroups.csv | sed "s/TRINITY/Polybia_quadracincta-TRINITY/g"  > tmp/Polybia-Orthogroups
+cut -f 9 input/Orthogroups.csv | sed "s/TRINITY/Vespa_crabro-TRINITY/g"  > tmp/Vespa-Orthogroups
+cut -f 10 input/Orthogroups.csv | sed "s/TRINITY/Vespula_vulgaris-TRINITY/g"  > tmp/Vespula-Orthogroups
+
+# this new file carries new names of sequences (Genus_species-TRINITY-etc)
+paste tmp/first-col-Orthogroups tmp/Agelaia-Orthogroups tmp/Angiopolybia-Orthogroups tmp/Brachygastra-Orthogroups tmp/Metapolybia-Orthogroups tmp/Mischocyttarus-Orthogroups tmp/Polistes-Orthogroups tmp/Polybia-Orthogroups tmp/Vespa-Orthogroups tmp/Vespula-Orthogroups > tmp/Orthogroups-renamed.csv
+
+
+# take the 1:1 orthologous sequences for each species, and create a fasta file for each orthogroup
+
+# out of 57,065 orthogroups: 2,516 1:1 orthogroups
+# awk assess each row in turn,
+# for each column from column 3 to column 10, if the value is equal to the previous column, awk prints it
+# next, it prints only the rows when the total is 9 (removing the 2:2 orthogroups)
+# finally it prints only the orthogroup name 
+awk '{for(i=3;i<=10;i++)if($i!=$(i-1))next}1' input/Orthogroups.GeneCount.csv \
+	| awk '$11==9 {print $1}' \
+	> tmp/1to1-orthogroups
+
+# for each orthogroup, grab the equivalent nucleotide sequence and put it a file
+# https://unix.stackexchange.com/questions/206903/match-exact-string-using-grep
+# https://stackoverflow.com/questions/25778587/identify-and-remove-specific-hidden-characters-from-text-file
+
+for orthogroup in $(cat tmp/1to1-orthogroups); do
+	grep ${orthogroup} tmp/Orthogroups-renamed.csv | cut -f 2,3,4,5,6,7,8,9,10 |  sed 's/\t/\n/g' | sed "s/\r//g" | sed 's/^/>/g' > tmp/${orthogroup}-sequences-names
+
+	grep -w -A 1 --no-filename --no-group-separator -f tmp/${orthogroup}-sequences-names input/*cds.largestIsoform > tmp/${orthogroup}-sequences.fa 
+done
+
+# result: each orthgroup has a fasta file with 9 nucleotide sequences
+# ordered by species' names in alphabetical order
+
+# expect all to be 18 lines
+wc -l tmp/*-sequences.fa | awk '$1==18 {print}' | wc -l
+
+
+###############################################################################
+# Aim 2: align each orthogroup fasta sequence with each other
+
+# run them all (estimate time)
+qsub prank-array.sh
+
+# check prank output - 1,971 work out of 2,516
+ls resultOnScratch/*-aligned_prank_output.best.phy | wc -l
+
+# there might be some aligmments that failed
+
+# keep orthogroups that were aligned successfully
+ls resultOnScratch/*-aligned_prank_output.best.phy \
+	| cut -d "/" -f 2 \
+	| cut -d "-" -f 1 \
+	> tmp/aligned-orthogroups
+
+
+
+
+###############################################################################
+# aim 3: calculate dN/dS for each orthogroup
+
+mkdir resultOnScratch/codeml 
+
+# make two template files, and two tree files
+# template file 1: null model (M0), where all branches are equal
+# template file 2: alternative model (M2), where one branch of interest is in foreground '#1'
+ls input/config-files
+
+
+# change all fasta headers, like in the tree (Genus_species)
+sed -i "s/-TRINITY.*$//g" resultOnScratch/*-aligned_prank_output.best.phy
+
+echo -e "orthogroup\tw_M0\tnp_M0\tlnL_M0\tnp_M2\tlnL_M2\tbackground_w\tforeground_w\tkappa_M2\tD\tDF\tchiTest" > result/omega_results/agelaia
+
+echo -e "orthogroup\tw_M0\tnp_M0\tlnL_M0\tnp_M2\tlnL_M2\tbackground_w\tforeground_w\tkappa_M2\tD\tDF\tchiTest" > result/omega_results/angiopolybia
+
+echo -e "orthogroup\tw_M0\tnp_M0\tlnL_M0\tnp_M2\tlnL_M2\tbackground_w\tforeground_w\tkappa_M2\tD\tDF\tchiTest" > result/omega_results/brachygastra
+
+echo -e "orthogroup\tw_M0\tnp_M0\tlnL_M0\tnp_M2\tlnL_M2\tbackground_w\tforeground_w\tkappa_M2\tD\tDF\tchiTest" > result/omega_results/metapolybia
+
+echo -e "orthogroup\tw_M0\tnp_M0\tlnL_M0\tnp_M2\tlnL_M2\tbackground_w\tforeground_w\tkappa_M2\tD\tDF\tchiTest" > result/omega_results/mischocyttarus
+
+echo -e "orthogroup\tw_M0\tnp_M0\tlnL_M0\tnp_M2\tlnL_M2\tbackground_w\tforeground_w\tkappa_M2\tD\tDF\tchiTest" > result/omega_results/polistes
+
+echo -e "orthogroup\tw_M0\tnp_M0\tlnL_M0\tnp_M2\tlnL_M2\tbackground_w\tforeground_w\tkappa_M2\tD\tDF\tchiTest" > result/omega_results/polybia
+
+echo -e "orthogroup\tw_M0\tnp_M0\tlnL_M0\tnp_M2\tlnL_M2\tbackground_w\tforeground_w\tkappa_M2\tD\tDF\tchiTest" > result/omega_results/vespa
+
+echo -e "orthogroup\tw_M0\tnp_M0\tlnL_M0\tnp_M2\tlnL_M2\tbackground_w\tforeground_w\tkappa_M2\tD\tDF\tchiTest" > result/omega_results/vespula
+
+# testing complex (vespa, vespula, vespine branch, agelaia, brachygastra) vs everything else
+echo -e "orthogroup\tw_M0\tnp_M0\tlnL_M0\tnp_M2\tlnL_M2\tbackground_w\tforeground_w\tkappa_M2\tD\tDF\tchiTest" > result/branch-models/omega_results/complexVSall
+
+# testing Swarming vs independent founding
+echo -e "orthogroup\tw_M0\tnp_M0\tlnL_M0\tnp_M2\tlnL_M2\tbackground_w\tforeground_w\tkappa_M2\tD\tDF\tchiTest" > result/branch-models/omega_results/SwarmVsIndependent
+
+
+echo -e "orthogroup\tw_M0\tnp_M0\tlnL_M0\tnp_M2\tlnL_M2\tbackground_w\tforeground_w\tkappa_M2\tD\tDF\tchiTest" > result/branch-models/omega_results/complexVsSimplePolistines
+
+# run codeml in array, for each orthogroup, for each species
+qsub codeml-agelaia-array.sh
+qsub codeml-angiopolybia-array.sh 
+qsub codeml-brachygastra-array.sh
+qsub codeml-metapolybia-array.sh
+qsub codeml-mischocyttarus-array.sh
+qsub codeml-polistes-array.sh
+qsub codeml-polybia-array.sh
+qsub codeml-vespa-array.sh
+qsub codeml-vespula-array.sh
+qsub codeml-complexVSall-array.sh 
+
+# run branch model on Swarming vs independent founding
+qsub codeml-SwarmVsIndependent-array.sh
+
+# run branch model on Superorganisms vs the rest
+qsub codeml-superorganismsVsRest-array.sh
+
+# run branch model on Simple vs the rest
+qsub codeml-totipotentVsRest-array.sh
+
+# run branch model on Complex vs the rest (Polistine only)
+qsub codeml-complexVsSimplePolistines-array.sh
+
+
+# check results:
+head result/omega_results/agelaia
+cat result/omega_results/angiopolybia
+cat result/omega_results/brachygastra
+cat result/omega_results/metapolybia
+cat result/omega_results/mischocyttarus
+cat result/omega_results/polistes
+cat result/omega_results/polybia
+cat result/omega_results/vespa
+cat result/omega_results/vespula
+
+# visualise result in R (with p adjust as well)
+2021-03-08-positive-selection-multispecies.Rmd
+
+
+
+###############################################################################
+# Aim 4: calculate dN/dS for each orthogroup for specific foreground
+
+# here we focus on the branch with the superorganismal species
+
+echo -e "orthogroup\tw_M0\tnp_M0\tlnL_M0\tnp_M2\tlnL_M2\tbackground_w\tforeground_w\tkappa_M2\tD\tDF\tchiTest" > result/omega_results/vespa-and-vespula
+
+qsub codeml-vespa-and-vespula-array.sh
+
+
+# run branch model on complex vs all 
+qsub codeml-complexVSall-array.sh 
+
+# run branch model on Swarming vs independent founding
+qsub codeml-SwarmVsIndependent-array.sh
+
+# run branch model on Superorganisms vs the rest
+qsub codeml-superorganismsVsRest-array.sh
+
+# run branch model on Simple vs the rest 
+qsub codeml-totipotentVsRest-array.sh
+
+###############################################################################
+# Aim 5: run branch-site models
+
+# this experiment is more specific, as we allow loci to have variable dn/ds. The previous experiment (branch model) computed an average dn/ds across all loci on a given branch.
+
+# model = 2 (different dN/dS for branches) 
+# NSsites = 2 (positive selection).
+# tree file: the branch of interest is marked on both models (null and alternative)
+
+
+# we test which model fits better the data
+# null model: fix_omega = 1 (fixed)
+# alternative model: fix_omega = 0 (not fixed)
+
+# make a template for null model (fix_omega = 1 (fixed))
+# null model is here: input/branch-site-models/config-files/template_omegaFixed.ctl
+# takes resultOnScratch/OG-aligned_prank_output.best.phy and input/tree-files/agelaia-tree.newick
+# created resultOnScratch/codeml/branch-site-models/agelaia-OG-omegaFixed
+
+# make a template for alternative model (fix_omega = 0 (not fixed))
+# alternative model is here: input/branch-site-models/config-files/template_omegaNotFixed.ctl
+# takes resultOnScratch/OG-aligned_prank_output.best.phy and input/tree-files/agelaia-tree.newick
+# created resultOnScratch/codeml/branch-site-models/agelaia-OG-omegaNotFixed
+
+# restructure result
+mkdir result/branch-site-models/omega_results
+
+# create result files 
+echo -e "orthogroup\tnp_M0\tlnL_M0\tnp_M1\tlnL_M2\tchiTestpvalue" > result/branch-site-models/omega_results/agelaia
+
+echo -e "orthogroup\tnp_M0\tlnL_M0\tnp_M1\tlnL_M2\tchiTestpvalue" > result/branch-site-models/omega_results/angiopolybia
+
+echo -e "orthogroup\tnp_M0\tlnL_M0\tnp_M1\tlnL_M2\tchiTestpvalue" > result/branch-site-models/omega_results/brachygastra
+
+echo -e "orthogroup\tnp_M0\tlnL_M0\tnp_M1\tlnL_M2\tchiTestpvalue" > result/branch-site-models/omega_results/metapolybia
+
+echo -e "orthogroup\tnp_M0\tlnL_M0\tnp_M1\tlnL_M2\tchiTestpvalue" > result/branch-site-models/omega_results/mischocyttarus
+
+echo -e "orthogroup\tnp_M0\tlnL_M0\tnp_M1\tlnL_M2\tchiTestpvalue" > result/branch-site-models/omega_results/polistes
+
+echo -e "orthogroup\tnp_M0\tlnL_M0\tnp_M1\tlnL_M2\tchiTestpvalue" > result/branch-site-models/omega_results/polybia
+
+echo -e "orthogroup\tnp_M0\tlnL_M0\tnp_M1\tlnL_M2\tchiTestpvalue" > result/branch-site-models/omega_results/vespa
+
+echo -e "orthogroup\tnp_M0\tlnL_M0\tnp_M1\tlnL_M2\tchiTestpvalue" > result/branch-site-models/omega_results/vespula
+
+
+# run script
+qsub branch-site-agelaia-array.sh
+
+qsub branch-site-angiopolybia-array.sh 
+qsub branch-site-brachygastra-array.sh
+qsub branch-site-metapolybia-array.sh
+qsub branch-site-mischocyttarus-array.sh 
+qsub branch-site-polistes-array.sh        
+qsub branch-site-polybia-array.sh
+qsub branch-site-vespa-array.sh
+qsub branch-site-vespula-array.sh
+
+# for this test, the foreground branch is vespa, vespula and their ancestral node
+qsub branch-site-vespa-and-vespula-array.sh
+
+
+rm -f branch-site-agelaia-array.sh.e*
+rm -f branch-site-agelaia-array.sh.e*  
+rm -f branch-site-angiopolybia-array.sh.e* 
+rm -f branch-site-brachygastra-array.sh.e*
+rm -f branch-site-metapolybia-array.sh.e*
+rm -f branch-site-mischocyttarus-array.sh.e*
+rm -f branch-site-polistes-array.sh.e*        
+rm -f branch-site-polybia-array.sh.e*
+rm -f branch-site-vespa-array.sh.e*
+rm -f branch-site-vespula-array.sh.e*
+
+rm -f branch-site-agelaia-array.sh.o*
+rm -f branch-site-agelaia-array.sh.o*  
+rm -f branch-site-angiopolybia-array.sh.o* 
+rm -f branch-site-brachygastra-array.sh.o*
+rm -f branch-site-metapolybia-array.sh.o*
+rm -f branch-site-mischocyttarus-array.sh.o*
+rm -f branch-site-polistes-array.sh.o*        
+rm -f branch-site-polybia-array.sh.o*
+rm -f branch-site-vespa-array.sh.o*
+rm -f branch-site-vespula-array.sh.o*
+
+### collect info for each species
+
+species="vespa-and-vespula"
+
+# create result file
+echo -e "orthogroup\tnp_M0\tlnL_M0\tnp_M1\tlnL_M2\tchiTestpvalue" > result/branch-site-models/omega_results/${species}-tidy
+
+
+# looping through each orthogroup and obtaining information
+
+for orthogroup in $(cat tmp/aligned-orthogroups); do
+	# collect variables
+	# likelihood values lnL1 and lnL0 from omegaNotFixed and omegaFixed.
+	# number of parameters np1 and np0 from omegaNotFixed and omegaFixed.
+
+	np_M0=`grep "lnL" resultOnScratch/codeml/branch-site-models/${species}-${orthogroup}-omegaFixed | sed "s/ //g" | cut -d ")" -f 1 | cut -d ":" -f 3`
+
+	lnL_M0=`grep "lnL" resultOnScratch/codeml/branch-site-models/${species}-${orthogroup}-omegaFixed | sed "s/ //g"  | cut -d "+" -f 1 | cut -d ":" -f 4`
+
+	np_M1=`grep "lnL" resultOnScratch/codeml/branch-site-models/${species}-${orthogroup}-omegaNotFixed | sed "s/ //g" | cut -d ")" -f 1 | cut -d ":" -f 3`
+
+	lnL_M1=`grep "lnL" resultOnScratch/codeml/branch-site-models/${species}-${orthogroup}-omegaNotFixed | sed "s/ //g"  | cut -d "+" -f 1 | cut -d ":" -f 4`
+
+
+	# D = 2(nLL_0 - nLL)
+
+	D=`echo "2*($lnL_M1 - $lnL_M0)" | bc`
+
+	DF=`echo "$np_M1 - $np_M0" | bc`
+	
+	chiTestpvalue=`/lustre/home/ucfaeef/programs/paml4.8/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+
+	# collect all info for this round and save it in result/omega_results
+	# p_M0 lnL_M0 np_M1 lnL_M1 chiTestpvalue
+	echo -e "${orthogroup}\t$np_M0\t$lnL_M0\t$np_M1\t$lnL_M1\t$chiTestpvalue" >> result/branch-site-models/omega_results/${species}-tidy
+
+done
+
+# check the outliers
+#agelaia
+#angiopolybia 
+#brachygastra
+#metapolybia
+#mischocyttarus
+#polistes        
+#polybia
+#vespa
+#vespula
+#species="vespa-and-vespula"
+cut -f 1 result/branch-site-models/omega_results/${species}-tidy | sort | uniq | head -n 5
+cut -f 1 result/branch-site-models/omega_results/${species}-tidy | sort | uniq | tail -n 5
+cut -f 2 result/branch-site-models/omega_results/${species}-tidy | sort | uniq | head -n 5
+cut -f 2 result/branch-site-models/omega_results/${species}-tidy | sort | uniq | tail -n 5
+cut -f 3 result/branch-site-models/omega_results/${species}-tidy | sort | uniq | head -n 5
+cut -f 3 result/branch-site-models/omega_results/${species}-tidy | sort | uniq | tail -n 5
+cut -f 4 result/branch-site-models/omega_results/${species}-tidy | sort | uniq | head -n 5 
+cut -f 4 result/branch-site-models/omega_results/${species}-tidy | sort | uniq | tail -n 5
+cut -f 5 result/branch-site-models/omega_results/${species}-tidy | sort | uniq | head -n 5 
+cut -f 5 result/branch-site-models/omega_results/${species}-tidy | sort | uniq | tail -n 5
+cut -f 6 result/branch-site-models/omega_results/${species}-tidy | sort | uniq | head -n 5
+cut -f 6 result/branch-site-models/omega_results/${species}-tidy | sort | uniq | tail -n 5 
+
+## check in R orthogroups with low adjusted p value 
+2021-03-08-positive-selection-multispecies.Rmd
+
+
+# once we have the list of orthogroups under pos selection
+# run this script to obtain the number of sites under pos selection per gene
+agelaia
+angiopolybia 
+brachygastra
+metapolybia
+mischocyttarus
+polistes        
+polybia
+vespa
+vespula
+
+species="vespula"
+
+rm -f result/branch-site-models/significant-orthogroups/${species}-orthogroup-num-result
+rm -f result/branch-site-models/significant-orthogroups/${species}-orthogroup-num-list
+
+touch result/branch-site-models/significant-orthogroups/${species}-orthogroup-num-list
+
+for orthogroup in $(cat result/branch-site-models/significant-orthogroups/adj-positive-orthogene-list-${species}); do
+	OrthoNum=`sed -n '/Bayes Empirical/,/The grid (see ternary graph for p0-p1)/p' resultOnScratch/codeml/branch-site-models/${species}-${orthogroup}-omegaNotFixed | sed 's/Positive sites for foreground lineages Prob(w>1)://g' | sed 's/Bayes Empirical Bayes (BEB) analysis (Yang, Wong & Nielsen 2005. Mol. Biol. Evol. 22:1107-1118)//g' | sed 's/The grid (see ternary graph for p0-p1)//g' | sed '/^$/d' | wc -l`
+	echo ${OrthoNum} >> result/branch-site-models/significant-orthogroups/${species}-orthogroup-num-list
+done
+
+paste result/branch-site-models/significant-orthogroups/adj-positive-orthogene-list-${species} result/branch-site-models/significant-orthogroups/${species}-orthogroup-num-list > result/branch-site-models/significant-orthogroups/${species}-orthogroup-num-result
+
+
+
+species="vespa-and-vespula"
+
+specieS="vespa_and_vespula"
+
+rm -f result/branch-site-models/significant-orthogroups/${species}-orthogroup-num-result
+rm -f result/branch-site-models/significant-orthogroups/${species}-orthogroup-num-list
+
+touch result/branch-site-models/significant-orthogroups/${species}-orthogroup-num-list
+
+for orthogroup in $(cat result/branch-site-models/significant-orthogroups/adj-positive-orthogene-list-${specieS}); do
+	OrthoNum=`sed -n '/Bayes Empirical/,/The grid (see ternary graph for p0-p1)/p' resultOnScratch/codeml/branch-site-models/${species}-${orthogroup}-omegaNotFixed | sed 's/Positive sites for foreground lineages Prob(w>1)://g' | sed 's/Bayes Empirical Bayes (BEB) analysis (Yang, Wong & Nielsen 2005. Mol. Biol. Evol. 22:1107-1118)//g' | sed 's/The grid (see ternary graph for p0-p1)//g' | sed '/^$/d' | wc -l`
+	echo ${OrthoNum} >> result/branch-site-models/significant-orthogroups/${species}-orthogroup-num-list
+done
+
+paste result/branch-site-models/significant-orthogroups/adj-positive-orthogene-list-${specieS} result/branch-site-models/significant-orthogroups/${species}-orthogroup-num-list > result/branch-site-models/significant-orthogroups/${species}-orthogroup-num-result
+
+
+
+### Print number of loci per orthogroup under positive selection
+# and probability
+# run this script to obtain the number of sites under pos selection per gene
+agelaia
+angiopolybia 
+brachygastra
+metapolybia
+mischocyttarus
+polistes        
+polybia
+vespa
+vespula
+
+species="vespula"
+touch result/branch-site-models/significant-orthogroups/${species}-orthogroup-loci-list
+
+for orthogroup in $(cat result/branch-site-models/significant-orthogroups/adj-positive-orthogene-list-${species}); do
+
+	lociList=`sed -n '/Bayes Empirical/,/The grid (see ternary graph for p0-p1)/p' resultOnScratch/codeml/branch-site-models/${species}-${orthogroup}-omegaNotFixed | sed 's/Positive sites for foreground lineages Prob(w>1)://g' | sed 's/Bayes Empirical Bayes (BEB) analysis (Yang, Wong & Nielsen 2005. Mol. Biol. Evol. 22:1107-1118)//g' | sed 's/The grid (see ternary graph for p0-p1)//g' | sed '/^$/d'`
+
+	LociNum=`echo -e "$lociList" | wc -l`
+
+	LociResult=$(paste <(yes $orthogroup | head -n $LociNum) <(echo -e "$lociList"))
+
+	echo -e "$LociResult" >> result/branch-site-models/significant-orthogroups/${species}-orthogroup-loci-list
+done
