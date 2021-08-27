@@ -7,6 +7,22 @@ The 3 folders contain the scripts used to:
 2. Refine the orthogroup lists, to reduce isoform representatives and to allow NAs across the species. 
 3. Run the DnDs analysis
 
+The dependencies are:
+ - BBTools version BBMap 38
+ - Trimmomatic v0.39
+ - Trinity v2.8
+ - github:biocorecrg/transcriptome_assembly
+ - Skewer
+ - TransDecoder v5.5.0
+ - Orthofinder v.2.2.7
+ - FastTree v2.1.10
+ - RSEM v1.3.1
+ - edgeR v3.26.5 
+ - PRANK v.151120
+ - PAML v. 4.8
+ - R v. 3.6.3
+ - Blast2GO v 1.4.4
+
 
 # (1) SVM
 
