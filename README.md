@@ -113,7 +113,7 @@ options:    -r     Run the scripts through R (default = OFF).
 Must be the top level folder (e.g. Multispecies_FILES), which should have folders DATA and scripts and FIGURES.
 
 *** Questions: 
-    Chris Wyatt (former post-doctorate) or Seirian Sumner
+    Chris Wyatt or Seirian Sumner
 ```
 
 Must be the top level folder (e.g. MAIN), which should have folders DATA and scripts and FIGURES.
