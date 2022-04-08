@@ -1,3 +1,14 @@
+# Multispecies_paper_ML
+
+The 2 folders contain the scripts used to:
+1. Refine the orthogroup lists, to reduce isoform representatives and to allow NAs across the species. 
+2. Run the DnDs analysis
+
+# Dependencies
+ - PRANK v.151120
+ - PAML v. 4.8
+ - R v. 3.6.3
+
 # Orthogroup refining and DnDs scripts
 
 # (1) Refining the orthogroups
@@ -25,7 +36,7 @@ This script find the largest isoform representative of a gene to be used in the 
 
 
 
-# (3) DnDs
+# (2) DnDs
 
 # Positive selection in nine species (wasp social spectrum)
 
