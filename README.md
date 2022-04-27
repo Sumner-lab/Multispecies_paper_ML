@@ -1,9 +1,9 @@
 # Multispecies_paper_ML
 
-Scripts used for Multispecies paper (Wyatt et al. Unpublished). These scripts allow a bespoke way to do svm machine learning on non-genome guided RNAseq data (Trinity), across multiple species. This process is not automated, and requires a lengthy process of acquiring Trinity assemblies for your species of interest, then compiling the data in a specific data structure (folder organisation- see later) to make the script perform without error. Please contact the authors if you wish to embark on a similar analysis (before trying out the various scripts), as likely the scripts would have to be changed for another analysis.
+Scripts used for Multispecies paper (Wyatt et al. Unpublished). These scripts allow a bespoke way to do svm machine learning on non-genome guided RNAseq data (Trinity), across multiple species (given one queen and one worker sample per species). This process is not automated, and requires a lengthy process of acquiring Trinity assemblies for your species of interest, then compiling the data in a specific data structure (folder organisation- see later) to make the script perform without error. Please contact the authors if you wish to embark on a similar analysis, as likely the scripts would have to be adapted for another analysis.
 
 The 3 folders contain the scripts used to:
-1. Run the SVM analysis (with Trinity assemblies)
+1. Run the SVM analysis (with Trinity assemblies). Further, see the repo https://github.com/chriswyatt1/Trinity_to_SVM, to see exactly how to run these scripts with example datasets.
 2. Refine the orthogroup lists, to reduce isoform representatives and to allow NAs across the species. 
 3. Run the DnDs analysis
 
